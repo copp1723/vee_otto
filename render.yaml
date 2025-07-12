@@ -186,4 +186,4 @@ services:
 databases:
   # Optional: Redis for caching and session management
   - name: vee-otto-redis
-    plan: starter
+    plan: free
