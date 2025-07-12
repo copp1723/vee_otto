@@ -1,0 +1,53 @@
+{
+  "name": "vauto_sticker_scrape",
+  "commands": [
+    {
+      "command": "comment",
+      "target": "Handle dynamic iframe for window sticker"
+    },
+    {
+      "command": "visualAssert",
+      "target": "images/window_sticker_link.png",
+      "value": "10"
+    },
+    {
+      "command": "XClick",
+      "target": "images/window_sticker_link.png",
+      "value": "0.8"
+    },
+    {
+      "command": "pause",
+      "target": "3000"
+    },
+    {
+      "command": "selectFrame",
+      "target": "relative=top"
+    },
+    {
+      "command": "visualAssert",
+      "target": "images/sticker_content.png",
+      "value": "15"
+    },
+    {
+      "command": "XClickRelative",
+      "target": "images/sticker_content.png",
+      "value": "0,0"
+    },
+    {
+      "command": "XType",
+      "target": "${KEY_CTRL+A}"
+    },
+    {
+      "command": "XType",
+      "target": "${KEY_CTRL+C}"
+    },
+    {
+      "command": "storeClipboard",
+      "target": "sticker_content"
+    },
+    {
+      "command": "captureScreenshot",
+      "target": "sticker_${vin}_${timestamp}.png"
+    }
+  ]
+}

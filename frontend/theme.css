@@ -1,0 +1,72 @@
+/* Professional Executive Theme Variables */
+:root {
+  /* Primary Colors - Professional Blue Palette */
+  --primary-blue: #1e3a5f;      /* Deep professional blue */
+  --primary-blue-dark: #15293f;  /* Darker variant */
+  --primary-blue-light: #2d4d7a; /* Lighter variant */
+  
+  /* Accent Colors - Subtle and Professional */
+  --accent-blue: #4a7ba7;        /* Muted blue for accents */
+  --accent-green: #28a745;       /* Success green */
+  --accent-red: #dc3545;         /* Error/warning red */
+  --accent-amber: #f0ad4e;       /* Warning amber */
+  
+  /* Neutral Colors - Grayscale */
+  --gray-900: #1a1a1a;           /* Near black */
+  --gray-800: #2d2d2d;           /* Dark gray */
+  --gray-700: #404040;           /* Medium dark gray */
+  --gray-600: #525252;           /* Medium gray */
+  --gray-500: #737373;           /* Mid gray */
+  --gray-400: #a3a3a3;           /* Light gray */
+  --gray-300: #d4d4d4;           /* Lighter gray */
+  --gray-200: #e5e5e5;           /* Very light gray */
+  --gray-100: #f5f5f5;           /* Near white */
+  --white: #ffffff;              /* Pure white */
+  
+  /* Background Colors */
+  --bg-primary: #f8f9fa;         /* Light gray background */
+  --bg-secondary: #ffffff;       /* White background */
+  --bg-dark: #1e3a5f;           /* Dark blue background */
+  --bg-darker: #15293f;         /* Darker blue background */
+  
+  /* Text Colors */
+  --text-primary: #2d2d2d;       /* Dark gray text */
+  --text-secondary: #525252;     /* Medium gray text */
+  --text-light: #737373;         /* Light gray text */
+  --text-inverse: #ffffff;       /* White text on dark bg */
+  
+  /* Border Colors */
+  --border-light: #e5e5e5;       /* Light border */
+  --border-medium: #d4d4d4;      /* Medium border */
+  --border-dark: #a3a3a3;        /* Dark border */
+  
+  /* Shadow Values */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  
+  /* Transition Values */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+  
+  /* Border Radius - Sharp and Clean */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  
+  /* Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* Deprecated - To be replaced */
+  --black: var(--gray-900);
+  --gray-dark: var(--gray-700);
+  --gray-medium: var(--gray-400);
+  --gray-light: var(--gray-100);
+  --orange: var(--accent-blue);  /* Replace orange with professional blue */
+  --orange-dark: var(--primary-blue-dark);
+}

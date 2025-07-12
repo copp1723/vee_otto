@@ -1,0 +1,165 @@
+/* MetricTile Component Styles */
+.metricTile {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.metricTile:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.metricValue {
+  font-size: 28px;
+  font-weight: var(--font-bold);
+  color: var(--primary-blue);
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  font-weight: var(--font-medium);
+}
+
+.metricChange {
+  font-size: 14px;
+  font-weight: var(--font-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.metricChange.positive {
+  color: var(--accent-green);
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+.metricChange.negative {
+  color: var(--accent-red);
+  background-color: rgba(220, 53, 69, 0.1);
+}
+
+.metricChange.neutral {
+  color: var(--text-secondary);
+  background-color: rgba(115, 115, 115, 0.1);
+}
+
+.changeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Loading state */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.loadingValue {
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  height: 32px;
+  width: 75%;
+  margin-bottom: 8px;
+}
+
+.loadingLabel {
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  height: 14px;
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.loadingChange {
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  height: 18px;
+  width: 40%;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .metricTile {
+    padding: 20px;
+    min-height: 100px;
+  }
+  
+  .metricValue {
+    font-size: 28px;
+  }
+  
+  .metricLabel {
+    font-size: 12px;
+  }
+  
+  .metricChange {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metricTile {
+    padding: 16px;
+    min-height: 90px;
+  }
+  
+  .metricValue {
+    font-size: 24px;
+  }
+}
+
+/* Loading skeleton animation */
+.loadingSkeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loadingShimmer 1.5s infinite;
+}
+
+@keyframes loadingShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Accessibility */
+.metricTile:focus-within {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Animation for value changes */
+@keyframes valueUpdate {
+  0% { 
+    transform: scale(1);
+    color: var(--black);
+  }
+  50% { 
+    transform: scale(1.05);
+    color: var(--accent-blue);
+  }
+  100% { 
+    transform: scale(1);
+    color: var(--black);
+  }
+}
+
+.metricValue.updated {
+  animation: valueUpdate 0.6s ease-in-out;
+}

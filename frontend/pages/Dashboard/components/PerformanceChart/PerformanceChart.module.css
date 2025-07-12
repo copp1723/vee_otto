@@ -1,0 +1,300 @@
+/* PerformanceChart Component Styles */
+.performanceChart {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartHeader {
+  margin-bottom: 24px;
+}
+
+.chartTitle {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--black);
+  margin-bottom: 8px;
+}
+
+.chartSubtitle {
+  font-size: 14px;
+  color: var(--gray-dark);
+  margin-bottom: 16px;
+}
+
+.chartControls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.metricToggle {
+  background: var(--white);
+  border: 2px solid var(--gray-medium);
+  color: var(--gray-dark);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metricToggle:hover {
+  border-color: var(--orange-border);
+}
+
+.metricToggle.active {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--white);
+}
+
+.metricToggle.vehicles {
+  border-color: #007bff;
+}
+
+.metricToggle.vehicles.active {
+  background: #007bff;
+  border-color: #007bff;
+}
+
+.metricToggle.timeSaved {
+  border-color: #28a745;
+}
+
+.metricToggle.timeSaved.active {
+  background: #28a745;
+  border-color: #28a745;
+}
+
+.metricToggle.valueProtected {
+  border-color: var(--orange);
+}
+
+.chartContainer {
+  flex: 1;
+  min-height: 300px;
+  background: var(--white);
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid var(--gray-medium);
+}
+
+.rechartContainer {
+  width: 100%;
+  height: 100%;
+}
+
+/* Custom tooltip styles */
+.chartTooltip {
+  background: rgba(0, 0, 0, 0.9);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tooltipContent {
+  color: var(--white);
+}
+
+.tooltipLabel {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 4px;
+}
+
+.tooltipItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.tooltipItem:last-child {
+  margin-bottom: 0;
+}
+
+.tooltipColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  color: var(--gray-dark);
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--gray-medium);
+  border-top: 3px solid var(--orange);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loadingText {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Error state */
+.error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  color: #dc3545;
+  text-align: center;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.errorIcon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.errorMessage {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.errorDescription {
+  font-size: 14px;
+  opacity: 0.8;
+  max-width: 400px;
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  text-align: center;
+  color: var(--gray-dark);
+}
+
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.emptyMessage {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.emptyDescription {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Chart legend */
+.chartLegend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gray-dark);
+}
+
+.legendColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chartContainer {
+    padding: 16px;
+    min-height: 250px;
+  }
+  
+  .chartControls {
+    gap: 8px;
+  }
+  
+  .metricToggle {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  
+  .chartLegend {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chartHeader {
+    margin-bottom: 16px;
+  }
+  
+  .chartTitle {
+    font-size: 16px;
+  }
+  
+  .chartControls {
+    flex-direction: column;
+  }
+  
+  .metricToggle {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .chartContainer {
+    padding: 12px;
+    min-height: 200px;
+  }
+  
+  .chartLegend {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Animation for chart updates */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.chartContainer.updating {
+  animation: fadeIn 0.3s ease-in-out;
+}

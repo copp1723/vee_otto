@@ -1,0 +1,346 @@
+/* RecentCompletions Component Styles */
+.recentCompletions {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.completionsHeader {
+  margin-bottom: 20px;
+}
+
+.completionsTitle {
+  font-size: 16px;
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+}
+
+.completionsList {
+  flex: 1;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-400) var(--gray-200);
+}
+
+.completionsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.completionsList::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: 3px;
+}
+
+.completionsList::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: 3px;
+}
+
+.completionsList::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
+}
+
+.completionItem {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--accent-green);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.completionItem:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-sm);
+  background: var(--gray-50);
+}
+
+.completionItem:last-child {
+  margin-bottom: 0;
+}
+
+.completionHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.checkmark {
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.vehicleInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.vehicleName {
+  font-size: 15px;
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.vehicleVin {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  background: var(--gray-100);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.completionTime {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-bottom: 8px;
+}
+
+.outcome {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.metrics {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--gray-100);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  min-width: 80px;
+}
+
+.metricValue {
+  font-size: 14px;
+  font-weight: var(--font-semibold);
+  color: var(--primary-blue);
+  margin-bottom: 2px;
+}
+
+.metricLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.loadingItem {
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--gray-400);
+  border-radius: 6px;
+}
+
+.loadingHeader {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.loadingCheckmark {
+  width: 18px;
+  height: 18px;
+  background: var(--gray-200);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.loadingVehicle {
+  background: var(--gray-medium);
+  height: 20px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  width: 70%;
+}
+
+.loadingVin {
+  background: var(--gray-medium);
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  width: 50%;
+}
+
+.loadingOutcome {
+  background: var(--gray-medium);
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  width: 85%;
+}
+
+.loadingMetrics {
+  display: flex;
+  gap: 16px;
+}
+
+.loadingMetric {
+  background: var(--gray-medium);
+  height: 40px;
+  width: 80px;
+  border-radius: 6px;
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--gray-dark);
+}
+
+.emptyIcon {
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.emptyMessage {
+  font-size: 16px;
+  font-weight: var(--font-semibold);
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.emptyDescription {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Auto-refresh indicator */
+.refreshIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.refreshDot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Loading skeleton animation */
+.loadingSkeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loadingShimmer 1.5s infinite;
+}
+
+@keyframes loadingShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .completionHeader {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .checkmark {
+    align-self: flex-start;
+  }
+  
+  .metrics {
+    gap: 12px;
+  }
+  
+  .metric {
+    min-width: 70px;
+    padding: 6px 10px;
+  }
+  
+  .completionsList {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .completionItem {
+    padding: 12px 16px;
+  }
+  
+  .vehicleName {
+    font-size: 14px;
+  }
+  
+  .outcome {
+    font-size: 13px;
+  }
+  
+  .metrics {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .metric {
+    flex-direction: row;
+    justify-content: space-between;
+    min-width: auto;
+    width: 100%;
+  }
+}
+
+/* Animation for new completions */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.completionItem.new {
+  animation: slideIn 0.5s ease-out;
+}

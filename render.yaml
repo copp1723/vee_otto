@@ -1,0 +1,204 @@
+services:
+  # Backend API Server
+  - type: web
+    name: vee-otto-api
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build && npm run dashboard:build
+    startCommand: node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: HEADLESS
+        value: true
+      - key: LOG_LEVEL
+        value: warn
+      - key: DASHBOARD_INTEGRATION
+        value: true
+      - key: PLATFORM_URL
+        value: https://signin.coxautoinc.com
+      - key: TARGET_URL
+        value: https://app.vauto.com/inventory
+      - key: SMART_INTERACTION_ENABLED
+        value: true
+      - key: OCR_ENABLED
+        value: true
+      - key: PERFORMANCE_MONITORING
+        value: true
+      - key: SCREENSHOT_ON_FAILURE
+        value: true
+      - key: ENABLE_2FA
+        value: true
+      - key: TWO_FACTOR_METHOD
+        value: sms
+      - key: WEBHOOK_PORT
+        value: 3001
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_DEFAULT_MODEL
+        value: anthropic/claude-3.5-sonnet
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: false
+      - key: SMTP_FROM
+        value: automation@veeotto.ai
+      - key: REPORTS_NOTIFICATION_EMAIL
+        value: notifications@veeotto.ai
+      - key: BROWSER_TIMEOUT
+        value: 30000
+      - key: DEFAULT_RETRIES
+        value: 3
+      - key: LOG_FILE
+        value: ./logs/agent.log
+      - key: DOWNLOAD_DIR
+        value: ./downloads
+      - key: SCREENSHOT_DIR
+        value: ./screenshots
+      # Sensitive environment variables (set in Render dashboard)
+      - key: PLATFORM_USERNAME
+        sync: false
+      - key: PLATFORM_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASS
+        sync: false
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: TWO_FACTOR_PHONE
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: DEALERSHIP_NAME
+        sync: false
+      # Selectors
+      - key: USERNAME_SELECTOR
+        value: //input[@id="username"]
+      - key: PASSWORD_SELECTOR
+        value: //input[@id="password"]
+      - key: SUBMIT_SELECTOR
+        value: //button[@type="submit"]
+      - key: SUCCESS_INDICATOR
+        value: //div[contains(@class, "dashboard")]
+      - key: TFA_EMAIL_SELECTOR
+        value: //button[contains(text(), "Email")]
+      - key: TFA_CODE_SELECTOR
+        value: //input[@name="code"]
+      - key: TFA_SUBMIT_SELECTOR
+        value: //button[contains(text(), "Verify")]
+      - key: TFA_SUCCESS_INDICATOR
+        value: //div[contains(@class, "authenticated")]
+      - key: DATA_SELECTOR
+        value: //div[@class="inventory-count"]
+      # URLs (update after deployment)
+      - key: PUBLIC_URL
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: REACT_APP_API_URL
+        sync: false
+      - key: REACT_APP_WS_URL
+        sync: false
+      - key: DASHBOARD_URL
+        sync: false
+    disk:
+      name: vee-otto-storage
+      mountPath: /opt/render/project/logs
+      sizeGB: 1
+
+  # Frontend Dashboard
+  - type: static
+    name: vee-otto-frontend
+    buildCommand: npm ci && npm run dashboard:build
+    staticPublishPath: ./dist/frontend
+    pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /static/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  # Background Worker (for scheduled automation)
+  - type: worker
+    name: vee-otto-scheduler
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/scripts/run-vauto.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HEADLESS
+        value: true
+      - key: LOG_LEVEL
+        value: warn
+      - key: PLATFORM_URL
+        value: https://signin.coxautoinc.com
+      - key: TARGET_URL
+        value: https://app.vauto.com/inventory
+      - key: ENABLE_2FA
+        value: true
+      - key: TWO_FACTOR_METHOD
+        value: sms
+      - key: BROWSER_TIMEOUT
+        value: 30000
+      - key: DEFAULT_RETRIES
+        value: 3
+      # Sensitive variables (sync from API service)
+      - key: PLATFORM_USERNAME
+        sync: false
+      - key: PLATFORM_PASSWORD
+        sync: false
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: TWO_FACTOR_PHONE
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+databases:
+  # Optional: Redis for caching and session management
+  - name: vee-otto-redis
+    plan: starter

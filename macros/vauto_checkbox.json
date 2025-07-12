@@ -1,0 +1,33 @@
+{
+  "name": "vauto_checkbox",
+  "commands": [
+    {
+      "command": "visualAssert",
+      "target": "images/checkbox_area.png",
+      "value": "5"
+    },
+    {
+      "command": "storeImage",
+      "target": "images/checkbox_area.png",
+      "value": "current_state"
+    },
+    {
+      "command": "XClick",
+      "target": "images/checkbox_unchecked.png",
+      "value": "0.85"
+    },
+    {
+      "command": "pause",
+      "target": "1000"
+    },
+    {
+      "command": "visualVerify",
+      "target": "images/checkbox_checked.png",
+      "value": ""
+    },
+    {
+      "command": "captureScreenshot",
+      "target": "checkbox_result_${timestamp}.png"
+    }
+  ]
+}

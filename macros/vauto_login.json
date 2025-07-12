@@ -1,0 +1,41 @@
+{
+  "name": "vauto_login",
+  "commands": [
+    {
+      "command": "open",
+      "target": "https://app.vauto.com/login"
+    },
+    {
+      "command": "pause",
+      "target": "2000"
+    },
+    {
+      "command": "XClick",
+      "target": "images/username_field.png",
+      "value": "0.8"
+    },
+    {
+      "command": "XType",
+      "target": "${username}"
+    },
+    {
+      "command": "XClick",
+      "target": "images/password_field.png",
+      "value": "0.8"
+    },
+    {
+      "command": "XType",
+      "target": "${password}"
+    },
+    {
+      "command": "XClick",
+      "target": "images/login_button.png",
+      "value": "0.9"
+    },
+    {
+      "command": "visualAssert",
+      "target": "images/dashboard_loaded.png",
+      "value": "30"
+    }
+  ]
+}
