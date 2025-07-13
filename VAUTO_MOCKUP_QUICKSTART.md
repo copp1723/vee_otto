@@ -8,7 +8,7 @@ This guide helps you launch the vAuto mock HTML UI, run tests, and monitor for f
 ### Option 1: Manual Testing (Browser)
 ```bash
 # Start the mockup server for manual testing
-npm run vauto:manual
+npm run vauto:mockup-manual
 ```
 - Open http://localhost:3001 in your browser
 - Or use the Dashboard in dev mode at http://localhost:5173 (click "Test Mockup" tab)
@@ -17,7 +17,7 @@ npm run vauto:manual
 ### Option 2: Automated Testing with Monitoring
 ```bash
 # Run automated tests with full monitoring
-npm run vauto:test
+npm run vauto:mockup-test
 ```
 - Tests run automatically with visual browser (not headless)
 - All activity is logged to `logs/vauto-test-[timestamp].log`
@@ -26,7 +26,7 @@ npm run vauto:test
 ### Option 3: Both Manual and Automated
 ```bash
 # Run tests first, then keep server running for manual testing
-npm run vauto:test-watch
+npm run vauto:mockup-watch
 ```
 
 ## Test Flow
@@ -75,7 +75,7 @@ At the end of each test run, all errors are summarized
 ### If Tests Fail:
 
 1. **Check Element Visibility**
-   - Run with `npm run vauto:manual` to see the UI
+   - Run with `npm run vauto:mockup-manual` to see the UI
    - Verify elements are visible and clickable
 
 2. **Review Timing Issues**
@@ -129,7 +129,7 @@ Modify the test file to skip certain vehicles or flows.
 For automated testing in CI:
 1. Set `headless: true` in the test file
 2. Remove `slowMo` for faster execution
-3. Use the test command: `npm run vauto:test`
+3. Use the test command: `npm run vauto:mockup-test`
 
 ## Need Help?
 

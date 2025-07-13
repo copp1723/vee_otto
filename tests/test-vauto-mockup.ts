@@ -14,6 +14,17 @@ class VAutoMockupTest {
   private mockupServer: any = null;
   
   async startMockupServer(): Promise<void> {
+    // Check if server is already running
+    try {
+      const response = await fetch('http://localhost:3001');
+      if (response.ok) {
+        logger.info('Mockup server already running on port 3001');
+        return;
+      }
+    } catch (error) {
+      // Server not running, start it
+    }
+    
     return new Promise((resolve, reject) => {
       logger.info('Starting vAuto mockup server...');
       
