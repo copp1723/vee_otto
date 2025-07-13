@@ -179,12 +179,18 @@ app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
 
   const { Body, From } = req.body;
   if (Body) {
-    const code = Body.trim();
-    const timestamp = new Date().toISOString();
-    storedCodes.push({ code, timestamp, from: From });
-    // Remove expired codes
-    storedCodes = storedCodes.filter(c => new Date().getTime() - new Date(c.timestamp).getTime() < CODE_EXPIRATION_MS);
-    logger.info(`Received 2FA SMS from ${From}: ${code}`);
+    // Extract numeric code from VAuto SMS format: "One-time Bridge ID code: 279253. Code expires..."
+    const codeMatch = Body.match(/\b(\d{6})\b/);
+    if (codeMatch) {
+      const code = codeMatch[1];
+      const timestamp = new Date().toISOString();
+      storedCodes.push({ code, timestamp, from: From });
+      // Remove expired codes
+      storedCodes = storedCodes.filter(c => new Date().getTime() - new Date(c.timestamp).getTime() < CODE_EXPIRATION_MS);
+      logger.info(`Received 2FA SMS from ${From}: extracted code ${code} from message: ${Body}`);
+    } else {
+      logger.warn(`Received SMS from ${From} but could not extract 6-digit code from: ${Body}`);
+    }
   } else {
     logger.warn('Received SMS webhook with no Body');
   }
