@@ -3,7 +3,7 @@
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
 import { vAutoMockupConfig } from './fixtures/vauto-mockup/config';
 import { spawn } from 'child_process';
-import { Logger } from './src/utils/Logger';
+import { Logger } from '../core/utils/Logger';
 
 const logger = new Logger('vAuto-Mockup-Test');
 
