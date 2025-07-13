@@ -51,7 +51,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
-app.use(express.static(path.join(__dirname, '../dashboard')));
+app.use(express.static(path.join(__dirname, '../dist/dashboard')));
 // Serve vAuto mockup test site statically
 app.use('/test-mockup', express.static(path.join(__dirname, '../tests/fixtures/vauto-mockup')));
 
@@ -214,8 +214,26 @@ app.get('/api/2fa/latest', (req: Request, res: Response) => {
   }
 });
 
+// Test endpoint to manually add a 2FA code (for testing only)
+app.post('/api/2fa/test', (req: Request, res: Response) => {
+  const { code } = req.body;
+  if (code && /^\d{6}$/.test(code)) {
+    const timestamp = new Date().toISOString();
+    storedCodes.push({ code, timestamp, from: 'TEST' });
+    logger.info(`Test 2FA code added: ${code}`);
+    res.json({ success: true, code, timestamp });
+  } else {
+    res.status(400).json({ error: 'Invalid code format' });
+  }
+});
+
 
 // API Routes
+
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Authentication endpoint
 app.post('/api/auth/login', async (req: Request, res: Response) => {
@@ -425,7 +443,7 @@ export function updateFromAgent(data: {
 
 // Serve frontend for all non-API routes
 app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../dashboard/index.html'));
+  res.sendFile(path.join(__dirname, '../dist/dashboard/index.html'));
 });
 
 // Start server
