@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import MetricTile from './components/MetricTile';
 import ActionQueue from './components/ActionQueue';
 import RecentCompletions from './components/RecentCompletions';
-import PerformanceChart from './components/PerformanceChart';
+
+// Lazy load the heavy PerformanceChart component (includes Recharts)
+const PerformanceChart = lazy(() => import('./components/PerformanceChart'));
 import { 
   DashboardMetrics, 
   ActionQueueItem, 
@@ -275,10 +277,22 @@ const Dashboard: React.FC = () => {
 
             {/* Performance Chart */}
             <section className={`${styles.section} ${styles.chartSection}`}>
-              <PerformanceChart
-                data={performanceData}
-                loading={chartLoading}
-              />
+              <Suspense fallback={
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '400px',
+                  color: 'var(--text-secondary)'
+                }}>
+                  Loading chart...
+                </div>
+              }>
+                <PerformanceChart
+                  data={performanceData}
+                  loading={chartLoading}
+                />
+              </Suspense>
             </section>
           </main>
         </div>
