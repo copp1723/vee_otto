@@ -93,7 +93,7 @@ export class FileManager {
     try {
       const files = await fs.readdir(dirPath);
       if (extension) {
-        return files.filter(file => path.extname(file) === extension);
+        return files.filter((file: string) => path.extname(file) === extension);
       }
       return files;
     } catch (error) {

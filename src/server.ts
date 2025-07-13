@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -59,19 +59,21 @@ app.use('/test-mockup', express.static(path.join(__dirname, '../tests/fixtures/v
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Authentication middleware
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.sendStatus(401);
+    res.sendStatus(401);
+    return;
   }
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  jwt.verify(token, JWT_SECRET, (err: any, user: any): void => {
     if (err) {
-      return res.sendStatus(403);
+      res.sendStatus(403);
+      return;
     }
-    req.user = user;
+    (req as any).user = user;
     next();
   });
 };
@@ -156,7 +158,7 @@ let storedCodes: StoredCode[] = [];
 const CODE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // Health check endpoint for Twilio webhook
-app.post('/webhooks/twilio/health', (req, res) => {
+app.post('/webhooks/twilio/health', (req: Request, res: Response) => {
   res.json({
     status: "ok",
     provider: "initialized",
@@ -165,7 +167,7 @@ app.post('/webhooks/twilio/health', (req, res) => {
 });
 
 // Twilio SMS webhook endpoint
-app.post('/webhooks/twilio/sms', (req, res) => {
+app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
   const signature = req.headers['x-twilio-signature'] as string;
   const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
   const params = req.body;
@@ -190,7 +192,7 @@ app.post('/webhooks/twilio/sms', (req, res) => {
 });
 
 // Endpoint for agent to fetch latest 2FA code
-app.get('/api/2fa/latest', (req, res) => {
+app.get('/api/2fa/latest', (req: Request, res: Response) => {
   if (storedCodes.length > 0) {
     const latest = storedCodes[storedCodes.length - 1];
     if (new Date().getTime() - new Date(latest.timestamp).getTime() < CODE_EXPIRATION_MS) {
@@ -210,7 +212,7 @@ app.get('/api/2fa/latest', (req, res) => {
 // API Routes
 
 // Authentication endpoint
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { username, password } = req.body;
   
   // Simple authentication (replace with proper auth in production)
@@ -223,7 +225,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Dashboard metrics endpoint
-app.get('/api/metrics', authenticateToken, async (req, res) => {
+app.get('/api/metrics', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response: ApiResponse<DashboardMetrics> = {
       success: true,
@@ -242,7 +244,7 @@ app.get('/api/metrics', authenticateToken, async (req, res) => {
 });
 
 // Action queue endpoint
-app.get('/api/action-queue', authenticateToken, async (req, res) => {
+app.get('/api/action-queue', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response: ApiResponse<ActionQueueItem[]> = {
       success: true,
@@ -261,7 +263,7 @@ app.get('/api/action-queue', authenticateToken, async (req, res) => {
 });
 
 // Recent completions endpoint
-app.get('/api/recent-completions', authenticateToken, async (req, res) => {
+app.get('/api/recent-completions', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response: ApiResponse<RecentCompletion[]> = {
       success: true,
@@ -280,7 +282,7 @@ app.get('/api/recent-completions', authenticateToken, async (req, res) => {
 });
 
 // Performance data endpoint
-app.get('/api/performance', authenticateToken, async (req, res) => {
+app.get('/api/performance', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response: ApiResponse<PerformanceData[]> = {
       success: true,
@@ -299,7 +301,7 @@ app.get('/api/performance', authenticateToken, async (req, res) => {
 });
 
 // System status endpoint
-app.get('/api/system-status', authenticateToken, async (req, res) => {
+app.get('/api/system-status', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response: ApiResponse<SystemStatus> = {
       success: true,
@@ -318,7 +320,7 @@ app.get('/api/system-status', authenticateToken, async (req, res) => {
 });
 
 // Process all items endpoint
-app.post('/api/process-queue', authenticateToken, async (req, res) => {
+app.post('/api/process-queue', authenticateToken, async (req: Request, res: Response) => {
   try {
     logger.info('Processing all items in queue...');
     
@@ -416,7 +418,7 @@ export function updateFromAgent(data: {
 }
 
 // Serve frontend for all non-API routes
-app.get('*', (req, res) => {
+app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../dist/frontend/index.html'));
 });
 

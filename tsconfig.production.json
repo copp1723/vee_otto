@@ -25,6 +25,7 @@
     "emitDecoratorMetadata": true
   },
   "include": [
+    "src/**/*",
     "core/**/*",
     "platforms/**/*",
     "integrations/**/*",
@@ -35,7 +36,6 @@
     "dist",
     "tests/**/*",
     "frontend/**/*",
-    "src/**/*",
     "deployments/**/*",
     "**/*.test.ts",
     "**/*.spec.ts"
