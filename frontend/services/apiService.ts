@@ -13,8 +13,14 @@ class ApiService {
   private token: string | null = null;
 
   constructor() {
+    // In production, use relative URL to same origin
+    // In development, use localhost or env variable
+    const baseURL = process.env.NODE_ENV === 'production'
+      ? '/api'
+      : (process.env.REACT_APP_API_URL || 'http://localhost:10000/api');
+    
     this.axiosInstance = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000/api',
+      baseURL,
       timeout: 10000,
     });
 
