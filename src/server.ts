@@ -51,9 +51,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
-app.use(express.static(path.join(__dirname, '../dist/dashboard')));
+app.use(express.static(path.join(__dirname, '../../dashboard')));
 // Serve vAuto mockup test site statically
-app.use('/test-mockup', express.static(path.join(__dirname, '../tests/fixtures/vauto-mockup')));
+app.use('/test-mockup', express.static(path.join(__dirname, '../../tests/fixtures/vauto-mockup')));
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -502,7 +502,7 @@ export function updateFromAgent(data: {
 
 // Serve frontend for all non-API routes
 app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../dist/dashboard/index.html'));
+  res.sendFile(path.join(__dirname, '../../dashboard/index.html'));
 });
 
 // Start server
