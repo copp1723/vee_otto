@@ -69,22 +69,22 @@
     "tesseract.js": "^6.0.1",
     "twilio": "^5.7.3",
     "typescript": "^5.2.2",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1",
+    "html-webpack-plugin": "^5.5.3",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.4.4",
+    "mini-css-extract-plugin": "^2.7.6",
+    "ts-node": "^10.9.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "@types/imap": "^0.8.40",
     "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "css-loader": "^6.8.1",
-    "html-webpack-plugin": "^5.5.3",
-    "mini-css-extract-plugin": "^2.7.6",
-    "style-loader": "^3.3.3",
-    "ts-loader": "^9.4.4",
-    "ts-node": "^10.9.1",
-    "webpack": "^5.88.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1"
+    "@types/react-dom": "^18.2.0"
   },
   "keywords": [
     "automation",
