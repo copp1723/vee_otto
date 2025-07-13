@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import twilio from 'twilio';
@@ -44,6 +45,12 @@ const io = new Server(httpServer, {
   }
 });
 
+// Get project root directory - works in both dev and production
+const projectRoot = process.env.NODE_ENV === 'production'
+  ? path.resolve(process.cwd())
+  : path.resolve(__dirname, '../..');
+const dashboardPath = path.join(projectRoot, 'dist', 'dashboard');
+
 // Middleware
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:8080',
@@ -51,9 +58,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
-app.use(express.static(path.join(__dirname, '../../dashboard')));
+app.use(express.static(dashboardPath));
 // Serve vAuto mockup test site statically
-app.use('/test-mockup', express.static(path.join(__dirname, '../../tests/fixtures/vauto-mockup')));
+app.use('/test-mockup', express.static(path.join(projectRoot, 'tests/fixtures/vauto-mockup')));
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -502,7 +509,8 @@ export function updateFromAgent(data: {
 
 // Serve frontend for all non-API routes
 app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../../dashboard/index.html'));
+  const indexPath = path.join(dashboardPath, 'index.html');
+  res.sendFile(indexPath);
 });
 
 // Start server
