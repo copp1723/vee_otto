@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vAuto Mockup for Testing - Enhanced</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-alert-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 2000;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
+        }
+        .custom-alert-overlay.active { opacity: 1; visibility: visible; }
+        .custom-alert-box {
+            background: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            text-align: center; max-width: 400px; width: 90%;
+        }
+        .custom-alert-box p { margin-bottom: 20px; color: #333; }
+        .custom-alert-box button {
+            background-color: #007bff; color: white; border: none; padding: 10px 20px;
+            border-radius: 4px; cursor: pointer;
+        }
+        /* Tab styling */
+        .tab-button.active { border-color: #3b82f6; background-color: #eff6ff; color: #3b82f6; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8 text-gray-800">
+
+<header class="bg-[#004b8d] text-white p-4 text-center text-2xl font-bold mb-8 rounded-lg shadow-md">
+    vAuto Mock Interface
+</header>
+
+<div id="app-container" class="max-w-7xl mx-auto">
+
+    <!-- Page 1: Username Screen -->
+    <div id="username-page" class="page active bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Login - Username</h2>
+        <input type="text" id="username" placeholder="Enter Username" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <button onclick="goToPassword()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
+    </div>
+
+    <!-- Page 2: Password Screen -->
+    <div id="password-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Login - Password</h2>
+        <input type="password" id="password" placeholder="Enter Password" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <button onclick="goToSelector()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
+    </div>
+
+    <!-- Page 3: Selector (Dealership) -->
+    <div id="selector-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Select Dealership</h2>
+        <select id="dealership" class="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <option>Cox Automotive - Main</option>
+            <option>vAuto Test Dealership</option>
+            <option>Manheim Orlando</option>
+        </select>
+        <button onclick="goToHomepage()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Select</button>
+    </div>
+
+    <!-- Page 4: Homepage -->
+    <div id="homepage" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-6">Homepage Dashboard</h2>
+        <div class="relative inline-block text-left group">
+            <button class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md inline-flex items-center transition">
+                <span>Pricing</span>
+                <svg class="fill-current h-4 w-4 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+            </button>
+            <div class="absolute hidden group-hover:block bg-white text-gray-800 pt-1 rounded-md shadow-lg z-10">
+                <a href="#" onclick="goToInventory()" class="block px-4 py-2 whitespace-nowrap hover:bg-blue-500 hover:text-white">View Inventory</a>
+                <a href="#" class="block px-4 py-2 whitespace-nowrap hover:bg-blue-500 hover:text-white">Market Analysis</a>
+            </div>
+        </div>
+        <p class="mt-6 text-gray-600">Welcome to vAuto Live Market View. Hover over menus to navigate.</p>
+    </div>
+
+    <!-- Page 5-7: Inventory View -->
+    <div id="inventory-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-6">Inventory Management</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+            <label for="days-filter" class="font-semibold">Filter by Days in Stock:</label>
+            <select id="days-filter" class="flex-grow p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                <option>0-1 day (new inventory)</option>
+                <option>2-7 days</option>
+            </select>
+            <button onclick="applyFilter()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Apply Filter</button>
+        </div>
+        <ul id="inventory-list" class="space-y-3">
+            <!-- Inventory items will be populated by JS -->
+        </ul>
+    </div>
+
+    <!-- Page 10-11: Window Sticker Popup -->
+    <div id="window-sticker-popup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div id="window-sticker-content" class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <!-- Sticker content will be populated by JS -->
+        </div>
+    </div>
+
+    <!-- Page 12-13: Description Checkboxes -->
+    <div id="description-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-2">Vehicle Description & Options</h2>
+        <p class="text-gray-600 mb-6">Update checkboxes based on the window sticker. Scroll for more options.</p>
+        <div id="description-checkboxes" class="h-64 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+            <!-- Checkboxes will be populated by JS -->
+        </div>
+        <button onclick="saveDescriptionAndGoToBooks()" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Save & Sync Book Values</button>
+    </div>
+    
+    <!-- NEW: Book Value Sync Page -->
+    <div id="book-value-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
+        <h2 class="text-xl sm:text-2xl font-semibold mb-4">Book Value Synchronization</h2>
+        <p class="text-gray-600 mb-6">Apply features to sync values across providers. Discrepancies will be highlighted.</p>
+        
+        <!-- Tabs -->
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                <button onclick="switchTab(event, 'jdpower')" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">J.D. Power</button>
+                <button onclick="switchTab(event, 'kbb')" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">KBB</button>
+                <button onclick="switchTab(event, 'blackbook')" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Black Book</button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="book-value-tabs-content" class="mt-6">
+            <!-- J.D. Power -->
+            <div id="jdpower" class="tab-content active"></div>
+            <!-- KBB -->
+            <div id="kbb" class="tab-content"></div>
+            <!-- Black Book -->
+            <div id="blackbook" class="tab-content"></div>
+        </div>
+        
+        <div class="mt-8 pt-6 border-t">
+            <h3 class="text-lg font-semibold">Sync Summary</h3>
+            <div id="sync-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-center">
+                <!-- Summary populated by JS -->
+            </div>
+        </div>
+
+        <button onclick="confirmBookValues()" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Confirm Values & Generate Report</button>
+    </div>
+
+
+    <!-- Page 14: Report -->
+    <div id="report-page" class="page hidden">
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-6 rounded-lg shadow-md" role="alert">
+            <h2 class="font-bold text-xl mb-2">Report Generated Successfully</h2>
+            <p>VIN: <span id="report-vin"></span>, Features Updated: <span id="report-features"></span>, Errors: 0</p>
+            <p class="mt-2">Adjustments have been saved and synced. An email notification has been simulated.</p>
+            <button onclick="resetMockup()" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition">Back to Login</button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Alert Modal -->
+<div id="custom-alert" class="custom-alert-overlay">
+    <div class="custom-alert-box">
+        <p id="custom-alert-message"></p>
+        <button onclick="closeCustomAlert()">OK</button>
+    </div>
+</div>
+
+
+<script>
+// --- MOCK DATA ---
+const vehicleData = {
+    'VIN123ABC': {
+        name: '2024 Ford Explorer',
+        stock: '78910',
+        price: '$42,500',
+        hasSticker: true,
+        features: [
+            { name: 'Leather Seats', price: 500, standard: false, checked: false },
+            { name: 'Navigation System', price: 800, standard: false, checked: false },
+            { name: 'Sunroof', price: 1200, standard: false, checked: false },
+            { name: 'Premium Sound System', price: 600, standard: false, checked: false },
+            { name: 'ABS Brakes', price: 0, standard: true, checked: true },
+            { name: 'Air Conditioning', price: 0, standard: true, checked: true },
+        ],
+        bookValues: {
+            jdpower: { base: 39000 },
+            kbb: { base: 39500 },
+            blackbook: { base: 38800 },
+        }
+    },
+    'VIN456DEF': {
+        name: '2023 Honda CR-V',
+        stock: '11121',
+        price: '$31,000',
+        hasSticker: true,
+        features: [
+            { name: 'Heated Seats', price: 400, standard: false, checked: false },
+            { name: 'Backup Camera', price: 350, standard: false, checked: false },
+            { name: 'Bluetooth', price: 0, standard: true, checked: true },
+            { name: 'Cruise Control', price: 0, standard: true, checked: true },
+        ],
+        bookValues: {
+            jdpower: { base: 29000 },
+            kbb: { base: 29200 },
+            blackbook: { base: 28900 },
+        }
+    },
+    'VIN789GHI': {
+        name: '2024 Toyota Camry',
+        stock: '31415',
+        price: '$29,800',
+        hasSticker: false, // This vehicle will trigger the "no sticker" flow
+        flagged: true,
+        features: [],
+        bookValues: {}
+    }
+};
+
+// --- State Management ---
+let currentVin = null;
+let currentVehicle = null;
+
+// --- Initial Load ---
+window.onload = () => {
+    renderInventoryList();
+};
+
+// --- Render Functions ---
+function renderInventoryList() {
+    const listEl = document.getElementById('inventory-list');
+    listEl.innerHTML = '';
+    Object.keys(vehicleData).forEach(vin => {
+        const vehicle = vehicleData[vin];
+        const flagIcon = vehicle.flagged ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 inline-block ml-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 01-1-1V6z" clip-rule="evenodd" /></svg>` : '';
+        const li = document.createElement('li');
+        li.className = "bg-white p-4 rounded-md border hover:shadow-md transition cursor-pointer";
+        li.onclick = () => processVehicleClick(vin);
+        li.innerHTML = `
+            <a href="#" class="font-semibold text-blue-600 hover:underline">${vehicle.name} ${flagIcon}</a>
+            <p class="text-sm text-gray-600">VIN: ${vin} | Stock #: ${vehicle.stock} | Price: ${vehicle.price}</p>
+        `;
+        listEl.appendChild(li);
+    });
+}
+
+function renderWindowSticker() {
+    const contentEl = document.getElementById('window-sticker-content');
+    const standardFeatures = currentVehicle.features.filter(f => f.standard).map(f => `<li>${f.name}</li>`).join('');
+    const optionalFeatures = currentVehicle.features.filter(f => !f.standard).map(f => `<li>${f.name} ($${f.price})</li>`).join('');
+    
+    contentEl.innerHTML = `
+        <div class="p-5 border-b flex justify-between items-center">
+            <h2 class="text-xl font-bold">Window Sticker for <span class="text-blue-600">${currentVin}</span></h2>
+            <button onclick="closePopup()" class="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+        </div>
+        <div class="p-6 overflow-y-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold text-lg mb-2 border-b pb-2">Standard Features</h3>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1">${standardFeatures}</ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg mb-2 border-b pb-2">Optional Packages</h3>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1">${optionalFeatures}</ul>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t">
+                <p><strong>MSRP:</strong> ${currentVehicle.price}</p>
+            </div>
+        </div>
+        <div class="p-4 bg-gray-50 border-t flex justify-end gap-3">
+             <button onclick="closePopup()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition">Close</button>
+            <button onclick="closePopupAndGoToDescription()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition">Edit Description</button>
+        </div>
+    `;
+}
+
+function renderDescriptionCheckboxes() {
+    const container = document.getElementById('description-checkboxes');
+    container.innerHTML = '';
+    currentVehicle.features.forEach(feature => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center';
+        label.innerHTML = `
+            <input type="checkbox" ${feature.checked ? 'checked' : ''} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" onchange="updateFeatureState('${feature.name}', this.checked)">
+            <span class="ml-2">${feature.name}</span>
+        `;
+        container.appendChild(label);
+    });
+}
+
+function renderBookValueTabs() {
+    const providers = ['jdpower', 'kbb', 'blackbook'];
+    providers.forEach(providerId => {
+        const container = document.getElementById(providerId);
+        const baseValue = currentVehicle.bookValues[providerId]?.base || 0;
+        const featuresHtml = currentVehicle.features.map(f => `
+            <label class="flex items-center justify-between">
+                <span>
+                    <input type="checkbox" ${f.checked ? 'checked' : ''} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" onchange="updateFeatureAndBooks('${providerId}', '${f.name}', this.checked)">
+                    <span class="ml-2">${f.name}</span>
+                </span>
+                <span class="text-gray-600 font-mono text-sm ${f.price > 0 ? 'text-green-600' : ''}">+$${f.price}</span>
+            </label>
+        `).join('');
+
+        container.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-3 p-4 border rounded-lg bg-gray-50">${featuresHtml}</div>
+                <div class="p-4 border rounded-lg">
+                    <h4 class="font-semibold text-lg mb-4">Valuation</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between"><span>Base Value:</span> <span class="font-mono">$<span id="${providerId}-base">${baseValue.toLocaleString()}</span></span></div>
+                        <div class="flex justify-between"><span>Options:</span> <span class="font-mono text-green-600">+$<span id="${providerId}-options">0</span></span></div>
+                        <div class="flex justify-between border-t pt-2 mt-2 font-bold"><span>Adjusted Value:</span> <span class="font-mono text-blue-600">$<span id="${providerId}-total">${baseValue.toLocaleString()}</span></span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    updateAllBookValues();
+}
+
+// --- Update & Calculation Functions ---
+function updateFeatureState(featureName, isChecked) {
+    const feature = currentVehicle.features.find(f => f.name === featureName);
+    if (feature) feature.checked = isChecked;
+}
+
+function updateFeatureAndBooks(providerId, featureName, isChecked) {
+    updateFeatureState(featureName, isChecked);
+    updateBookValues(providerId);
+}
+
+function updateAllBookValues() {
+    const providers = ['jdpower', 'kbb', 'blackbook'];
+    providers.forEach(updateBookValues);
+}
+
+function updateBookValues(providerId) {
+    if (!currentVehicle || !currentVehicle.bookValues[providerId]) return;
+    
+    const baseValue = currentVehicle.bookValues[providerId].base;
+    const optionsValue = currentVehicle.features.reduce((total, f) => {
+        return f.checked ? total + f.price : total;
+    }, 0);
+    const totalValue = baseValue + optionsValue;
+
+    document.getElementById(`${providerId}-options`).textContent = optionsValue.toLocaleString();
+    document.getElementById(`${providerId}-total`).textContent = totalValue.toLocaleString();
+    
+    updateSyncSummary();
+}
+
+function updateSyncSummary() {
+    const summaryEl = document.getElementById('sync-summary');
+    summaryEl.innerHTML = '';
+    const providers = ['jdpower', 'kbb', 'blackbook'];
+    providers.forEach(providerId => {
+        const total = document.getElementById(`${providerId}-total`).textContent;
+        const div = document.createElement('div');
+        div.className = 'p-4 bg-gray-100 rounded-lg';
+        div.innerHTML = `
+            <div class="text-sm uppercase text-gray-500">${providerId}</div>
+            <div class="text-2xl font-bold text-blue-700">$${total}</div>
+        `;
+        summaryEl.appendChild(div);
+    });
+}
+
+
+// --- Utility & Navigation ---
+function showCustomAlert(message) {
+    document.getElementById('custom-alert-message').textContent = message;
+    document.getElementById('custom-alert').classList.add('active');
+}
+
+function closeCustomAlert() {
+    document.getElementById('custom-alert').classList.remove('active');
+}
+
+function goTo(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    document.getElementById(pageId).classList.remove('hidden');
+}
+
+function goToPassword() {
+    if (document.getElementById('username').value.trim()) goTo('password-page');
+    else showCustomAlert('Please enter a username.');
+}
+
+function goToSelector() {
+    if (document.getElementById('password').value) goTo('selector-page');
+    else showCustomAlert('Please enter a password.');
+}
+
+function goToHomepage() { goTo('homepage'); }
+function goToInventory() { goTo('inventory-page'); }
+
+function switchTab(event, tabId) {
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+    document.querySelectorAll('.tab-button').forEach(tb => tb.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+// --- Main Workflow Functions ---
+function processVehicleClick(vin) {
+    currentVin = vin;
+    currentVehicle = JSON.parse(JSON.stringify(vehicleData[vin])); // Deep copy for isolated session
+
+    if (!currentVehicle.hasSticker) {
+        showCustomAlert(`No window sticker found for VIN ${vin}. This vehicle has been flagged for manual review.`);
+        vehicleData[vin].flagged = true; // Persist flag state for demo
+        renderInventoryList(); // Re-render to show flag
+        return;
+    }
+    
+    renderWindowSticker();
+    document.getElementById('window-sticker-popup').classList.remove('hidden');
+    document.getElementById('window-sticker-popup').classList.add('flex');
+}
+
+function closePopup() {
+    document.getElementById('window-sticker-popup').classList.add('hidden');
+    document.getElementById('window-sticker-popup').classList.remove('flex');
+}
+
+function closePopupAndGoToDescription() {
+    closePopup();
+    renderDescriptionCheckboxes();
+    goTo('description-page');
+}
+
+function saveDescriptionAndGoToBooks() {
+    showCustomAlert('Description saved. Now syncing book values...');
+    setTimeout(() => {
+        closeCustomAlert();
+        renderBookValueTabs();
+        goTo('book-value-page');
+    }, 1000);
+}
+
+function confirmBookValues() {
+    const checkedCount = currentVehicle.features.filter(f => f.checked).length;
+    document.getElementById('report-vin').textContent = currentVin || 'N/A';
+    document.getElementById('report-features').textContent = checkedCount;
+    goTo('report-page');
+}
+
+function applyFilter() {
+    const filterValue = document.getElementById('days-filter').options[document.getElementById('days-filter').selectedIndex].text;
+    showCustomAlert(`Filter applied: Showing inventory for "${filterValue}".`);
+}
+
+function resetMockup() {
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    goTo('username-page');
+}
+
+// Prevent form submission on link clicks
+document.addEventListener('click', e => {
+    if (e.target.matches('a[href="#"]')) {
+        e.preventDefault();
+    }
+});
+</script>
+
+</body>
+</html> 

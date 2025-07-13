@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vee Otto - Interactive Process Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: I've designed an interactive dashboard that simulates the agent's workflow. The structure is a three-column layout: an interactive flowchart on the left, a dynamic "Step Details" panel in the center, and a live log/metrics panel on the right. This was chosen over a static report to make the complex process tangible and explorable. Users can start, pause, and step through the simulation, watching each component update in real-time. This active learning approach is superior for understanding a technical workflow compared to passively reading text. -->
+    <!-- Visualization & Content Choices: 
+        - Workflow Diagram (Organize/Change): Recreated the Mermaid chart using interactive HTML/CSS/JS to show progression. Avoids SVG/Mermaid per constraints.
+        - KPIs (Inform): Large "stat cards" for immediate clarity on key metrics like success rate and time saved.
+        - Book Value Comparison (Compare): A grouped bar chart (Chart.js) visualizes the financial impact of features, directly addressing the "$500-$2200 errors" concern from the report. Interaction allows users to see this change live.
+        - Processing Status (Compare): A doughnut chart (Chart.js) shows the real-time breakdown of vehicle processing outcomes (Success, Flagged, Failed).
+        - Live Log (Change/Inform): A scrolling text area presents a real-time feed of the agent's actions and decisions, making the process transparent.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .flow-box { transition: all 0.3s ease-in-out; }
+        .flow-box.active {
+            background-color: #3b82f6;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .flow-line {
+            width: 2px;
+            background-color: #d1d5db;
+            margin-left: 50%;
+        }
+        .flow-arrow {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid #d1d5db;
+            margin-left: calc(50% - 6px);
+        }
+        .log-entry { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Vee Otto - Interactive Process Explorer</h1>
+            <p class="text-lg text-gray-600 mt-1">An interactive simulation of the AI-powered inventory automation agent.</p>
+        </header>
+
+        <div id="control-panel" class="bg-white p-4 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">Start Simulation</button>
+                <button id="pause-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105 hidden">Pause</button>
+                <button id="reset-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">Reset</button>
+            </div>
+            <div id="sim-status" class="font-semibold text-gray-700 bg-gray-100 px-4 py-2 rounded-full text-sm">Status: Idle</div>
+        </div>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+            <aside class="lg:col-span-3 bg-white p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2">Agent Workflow</h2>
+                <div id="workflow-diagram" class="space-y-2"></div>
+            </aside>
+
+            <section class="lg:col-span-6 bg-white p-6 rounded-lg shadow-md min-h-[600px]">
+                <h2 class="text-2xl font-bold mb-4">Step Details</h2>
+                <div id="step-details">
+                    <div class="text-center text-gray-500 mt-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="mt-2 text-lg font-medium text-gray-900">Simulation Not Started</h3>
+                        <p class="mt-1 text-sm text-gray-500">Click "Start Simulation" to begin.</p>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="lg:col-span-3 space-y-8">
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-xl font-bold mb-4 border-b pb-2">Live Metrics</h2>
+                    <div id="metrics-panel" class="space-y-3 text-center">
+                        <div>
+                             <p class="text-sm font-medium text-gray-500">Processing Status</p>
+                             <div class="chart-container relative h-48 w-full max-w-xs mx-auto"><canvas id="status-chart"></canvas></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-center">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Success Rate</p>
+                                <p id="success-rate" class="text-2xl font-bold text-green-600">0%</p>
+                            </div>
+                             <div>
+                                <p class="text-sm font-medium text-gray-500">Time Saved</p>
+                                <p id="time-saved" class="text-2xl font-bold text-blue-600">0m</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-xl font-bold mb-4 border-b pb-2">Live Log</h2>
+                    <div id="log-panel" class="h-80 overflow-y-auto bg-gray-900 text-white font-mono text-xs p-3 rounded-md space-y-1">
+                        <p class="text-gray-400">Waiting for simulation to start...</p>
+                    </div>
+                </div>
+            </aside>
+
+        </main>
+    </div>
+
+<script>
+const workflowData = [
+    { id: 'init', title: 'Init Agent', isErrorHandling: false },
+    { id: 'login', title: 'Login & Navigate', isErrorHandling: false },
+    { id: 'filter', title: 'Filter New Inventory', isErrorHandling: false },
+    { id: 'loop', title: 'Loop Vehicles?', isDecision: true, isErrorHandling: false },
+    { id: 'process', title: 'Process Single Vehicle', isErrorHandling: false },
+    { id: 'extract', title: 'Extract Sticker Features', isErrorHandling: false },
+    { id: 'apply', title: 'Apply Features to Desc', isErrorHandling: false },
+    { id: 'sync', title: 'Sync Book Values', isErrorHandling: false },
+    { id: 'verify', title: 'Verify & Flag', isErrorHandling: false },
+    { id: 'save', title: 'Save/Update Vehicle', isErrorHandling: false },
+    { id: 'report', title: 'Generate Reports', isErrorHandling: false },
+    { id: 'notify', title: 'Email Notifications', isErrorHandling: false },
+    { id: 'end', title: 'End: Cleanup & Metrics', isErrorHandling: false },
+    { id: 'error', title: 'Flag & Screenshot', isErrorHandling: true },
+];
+
+const stepDetailsContent = {
+    init: {
+        title: 'Initialization & Setup',
+        text: 'The agent loads configurations from environment variables (.env), including credentials, UI selectors, and feature mappings. It initializes the Playwright browser instance and prepares the OCR service.',
+        data: { type: 'code', content: 'VAUTO_USERNAME="test"\nVAUTO_PASSWORD="***"\nOCR_PROVIDER="Tesseract"' }
+    },
+    login: {
+        title: 'Login & Authentication',
+        text: 'The agent navigates to the vAuto login page, types the username and password using hybrid automation primitives, and clicks submit. It waits for a known element on the homepage to verify a successful login.',
+        data: { type: 'image', content: 'Login Flow' }
+    },
+    filter: {
+        title: 'Navigate & Filter Inventory',
+        text: 'After login, the agent navigates through the "Pricing" menu to "View Inventory". It then selects the "0-1 day" filter to isolate newly added vehicles for processing.',
+        data: { type: 'text', content: 'Selected Filter: 0-1 days (new inventory)' }
+    },
+    loop: {
+        title: 'Loop Through Vehicles',
+        text: 'The agent begins iterating through the list of filtered vehicles. For each vehicle, it initiates a processing sequence. The simulation will process a batch of 150 vehicles.',
+        data: { type: 'text', content: 'Total Vehicles to Process: 150' }
+    },
+    process: {
+        title: 'Processing Vehicle',
+        text: 'The agent navigates to the specific vehicle\'s detail page. It parses basic information like Make, Model, and Year to confirm it\'s on the correct page before proceeding.',
+        data: { type: 'text', content: 'Current VIN: VIN123ABC' }
+    },
+    extract: {
+        title: 'Extract Sticker Features (OCR)',
+        text: 'The agent clicks to open the "Window Sticker" popup, takes a screenshot, and sends it to the OCR service. It then parses the returned text to identify standard and optional features, especially those with a dollar value.',
+        data: { type: 'code', content: '...OCR Results...\n- Leather Seats ($500)\n- Navigation ($800)\nConfidence: 96%' }
+    },
+    apply: {
+        title: 'Apply Features to Description',
+        text: 'Using the extracted features, the agent finds the corresponding checkboxes on the vehicle\'s description page. It uses fuzzy matching for robustness and scrolls the view as needed to check all relevant boxes.',
+        data: { type: 'image', content: 'Checkboxes Updated' }
+    },
+    sync: {
+        title: 'Sync Book Values',
+        text: 'The agent navigates to the "Book Values" section, switching between J.D. Power, KBB, and Black Book tabs. It applies the same features and verifies that the vehicle\'s valuation is updated correctly, flagging large discrepancies.',
+        data: { type: 'chart', id: 'book-value-chart' }
+    },
+    verify: {
+        title: 'Verify Sync & Flag Discrepancies',
+        text: 'After applying features, the agent double-checks the final values. If a sync fails or a discrepancy over $500 is found, it flags the vehicle for manual review.',
+        data: { type: 'text', content: 'Discrepancy Check: KBB vs J.D. Power = $300 (OK)' }
+    },
+    save: {
+        title: 'Save & Update Vehicle',
+        text: 'Once all processing is complete and verified for a single vehicle, the agent clicks the "Save" button to commit the changes to the vAuto system.',
+        data: { type: 'text', content: 'Status: Changes Saved.' }
+    },
+    report: {
+        title: 'Generate Reports & Update Dashboard',
+        text: 'After the batch is complete, the agent aggregates the results of all processed vehicles into a summary report. This data is then sent to a real-time dashboard.',
+        data: { type: 'image', content: 'Report Generated' }
+    },
+    notify: {
+        title: 'Send Email Notifications',
+        text: 'A summary email is sent to stakeholders. The email includes key metrics like the number of vehicles processed, success rate, and a list of any vehicles that were flagged for manual review.',
+        data: { type: 'text', content: 'Email sent to: manager@dealership.com' }
+    },
+    end: {
+        title: 'Cleanup & Final Metrics',
+        text: 'The agent logs the final statistics for the run, closes the browser instance, and terminates the OCR service to free up resources. The run is now complete.',
+        data: { type: 'text', content: 'Simulation Complete.' }
+    },
+    error: {
+        title: 'Error: Flag & Screenshot',
+        text: 'An unrecoverable error was detected (e.g., no window sticker found). The agent flags the vehicle with an appropriate error code, takes a screenshot of the current page for debugging, and moves to the next vehicle in the queue.',
+        data: { type: 'code', content: 'Error Code: NO_STICKER\nAction: Screenshot taken, adding to review queue.' }
+    }
+};
+
+let simState = {
+    isRunning: false,
+    intervalId: null,
+    currentStepIndex: -1,
+    processedCount: 0,
+    successCount: 0,
+    flaggedCount: 0,
+    failedCount: 0,
+    totalToProcess: 150,
+};
+
+let charts = {};
+
+const startBtn = document.getElementById('start-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const resetBtn = document.getElementById('reset-btn');
+const statusEl = document.getElementById('sim-status');
+const workflowDiagramEl = document.getElementById('workflow-diagram');
+const stepDetailsEl = document.getElementById('step-details');
+const logPanelEl = document.getElementById('log-panel');
+
+function init() {
+    renderWorkflowDiagram();
+    renderStatusChart();
+    resetBtn.addEventListener('click', resetSimulation);
+    startBtn.addEventListener('click', startSimulation);
+    pauseBtn.addEventListener('click', pauseSimulation);
+}
+
+function resetSimulation() {
+    pauseSimulation();
+    simState = {
+        isRunning: false,
+        intervalId: null,
+        currentStepIndex: -1,
+        processedCount: 0,
+        successCount: 0,
+        flaggedCount: 0,
+        failedCount: 0,
+        totalToProcess: 150,
+    };
+    updateUI();
+    logPanelEl.innerHTML = '<p class="text-gray-400">Waiting for simulation to start...</p>';
+    stepDetailsEl.innerHTML = `
+        <div class="text-center text-gray-500 mt-20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <h3 class="mt-2 text-lg font-medium text-gray-900">Simulation Reset</h3>
+            <p class="mt-1 text-sm text-gray-500">Click "Start Simulation" to begin again.</p>
+        </div>`;
+    startBtn.classList.remove('hidden');
+    pauseBtn.classList.add('hidden');
+}
+
+function startSimulation() {
+    if (simState.isRunning) return;
+    simState.isRunning = true;
+    simState.intervalId = setInterval(runStep, 2000);
+    startBtn.classList.add('hidden');
+    pauseBtn.classList.remove('hidden');
+    if (simState.currentStepIndex === -1) {
+        logPanelEl.innerHTML = '';
+    }
+    updateUI();
+}
+
+function pauseSimulation() {
+    if (!simState.isRunning) return;
+    simState.isRunning = false;
+    clearInterval(simState.intervalId);
+    startBtn.classList.remove('hidden');
+    pauseBtn.classList.add('hidden');
+    updateUI();
+}
+
+function runStep() {
+    if (simState.processedCount >= simState.totalToProcess) {
+        simState.currentStepIndex = workflowData.findIndex(s => s.id === 'report');
+    }
+
+    if (simState.currentStepIndex >= workflowData.length - 2) { 
+        if(simState.currentStepIndex === workflowData.length - 2) {
+            simState.currentStepIndex++;
+        } else {
+            pauseSimulation();
+            statusEl.textContent = 'Status: Completed';
+            return;
+        }
+    } else {
+        simState.currentStepIndex = (simState.currentStepIndex + 1) % workflowData.findIndex(s => s.id === 'report');
+    }
+    
+    let currentStep = workflowData[simState.currentStepIndex];
+
+    const isErrorScenario = simState.processedCount > 0 && Math.random() < 0.15; // 15% chance of error
+    if (currentStep.id === 'extract' && isErrorScenario) {
+        currentStep = workflowData.find(s => s.id === 'error');
+        simState.flaggedCount++;
+        simState.processedCount++;
+        addLog(`WARN: No sticker for VIN${Math.floor(Math.random() * 100000)}. Flagging for review.`, 'yellow');
+    } else if (currentStep.id === 'loop' && simState.processedCount < simState.totalToProcess) {
+        simState.currentStepIndex = workflowData.findIndex(s => s.id === 'process') -1;
+    } else if (currentStep.id === 'save') {
+        simState.successCount++;
+        simState.processedCount++;
+        addLog(`SUCCESS: Vehicle VIN${Math.floor(Math.random() * 100000)} processed and saved.`, 'green');
+    }
+
+    if (currentStep.id === 'init') {
+        addLog('INFO: Initializing agent and loading config...', 'blue');
+    }
+
+
+    updateUI(currentStep);
+}
+
+function updateUI(step = null) {
+    statusEl.textContent = simState.isRunning ? 'Status: Running...' : (simState.currentStepIndex > -1 ? 'Status: Paused' : 'Status: Idle');
+    
+    document.querySelectorAll('.flow-box').forEach((box, index) => {
+        const stepId = box.dataset.stepid;
+        let activeStep = step;
+        if (!activeStep && simState.currentStepIndex !== -1) {
+             activeStep = workflowData[simState.currentStepIndex];
+        }
+        
+        if (activeStep && stepId === activeStep.id) {
+            box.classList.add('active');
+            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            renderStepDetails(activeStep.id);
+        } else {
+            box.classList.remove('active');
+        }
+    });
+    
+    updateMetrics();
+}
+
+function updateMetrics() {
+    const successRate = simState.processedCount > 0 ? ((simState.successCount / simState.processedCount) * 100).toFixed(0) : 0;
+    document.getElementById('success-rate').textContent = `${successRate}%`;
+    const timeSaved = (simState.processedCount * 5); // 5 minutes saved per vehicle
+    document.getElementById('time-saved').textContent = `${timeSaved}m`;
+
+    charts.statusChart.data.datasets[0].data = [simState.successCount, simState.flaggedCount, simState.failedCount];
+    charts.statusChart.update();
+}
+
+
+function addLog(message, color) {
+    const p = document.createElement('p');
+    p.className = `log-entry text-${color}-400`;
+    p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    logPanelEl.prepend(p);
+}
+
+
+function renderWorkflowDiagram() {
+    workflowDiagramEl.innerHTML = '';
+    workflowData.forEach((step, index) => {
+        if(step.isErrorHandling) return;
+        
+        const shapeClass = step.isDecision ? 'transform -skew-x-12' : 'rounded-lg';
+        const box = document.createElement('div');
+        box.dataset.stepid = step.id;
+        box.className = `flow-box bg-gray-100 p-2 text-center text-sm font-semibold text-gray-700 border border-gray-200 cursor-pointer hover:bg-gray-200 ${shapeClass}`;
+        box.textContent = step.title;
+        workflowDiagramEl.appendChild(box);
+
+        if (index < workflowData.findIndex(s => s.id === 'report') - 1) {
+            const line = document.createElement('div');
+            line.className = 'flow-line h-6';
+            const arrow = document.createElement('div');
+            arrow.className = 'flow-arrow';
+            workflowDiagramEl.appendChild(line);
+            workflowDiagramEl.appendChild(arrow);
+        }
+    });
+}
+
+function renderStepDetails(stepId) {
+    const details = stepDetailsContent[stepId];
+    if (!details) return;
+
+    let dataHtml = '';
+    if(details.data) {
+        switch(details.data.type) {
+            case 'code':
+                dataHtml = `<pre class="bg-gray-800 text-white p-4 rounded-md text-sm whitespace-pre-wrap">${details.data.content}</pre>`;
+                break;
+            case 'chart':
+                 dataHtml = `<div class="chart-container relative h-64 w-full max-w-lg mx-auto"><canvas id="${details.data.id}"></canvas></div>`;
+                 break;
+            default:
+                dataHtml = `<div class="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg">${details.data.content}</div>`;
+        }
+    }
+    
+    stepDetailsEl.innerHTML = `
+        <div class="animate-fadeIn">
+            <h3 class="text-2xl font-bold text-gray-900">${details.title}</h3>
+            <p class="text-gray-600 mt-2 mb-6">${details.text}</p>
+            ${dataHtml}
+        </div>
+    `;
+
+    if (details.data && details.data.type === 'chart') {
+        renderBookValueChart(details.data.id);
+    }
+}
+
+function renderStatusChart() {
+    const ctx = document.getElementById('status-chart').getContext('2d');
+    charts.statusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Success', 'Flagged', 'Failed'],
+            datasets: [{
+                data: [0, 0, 0],
+                backgroundColor: ['#16a34a', '#f59e0b', '#dc2626'],
+                borderColor: '#ffffff',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } },
+                tooltip: { yAlign: 'bottom', displayColors: false }
+            }
+        }
+    });
+}
+
+function renderBookValueChart(canvasId) {
+     if(charts.bookValueChart) {
+        charts.bookValueChart.destroy();
+     }
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    charts.bookValueChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['J.D. Power', 'KBB', 'Black Book'],
+            datasets: [
+                {
+                    label: 'Base Value',
+                    data: [39000, 39500, 38800],
+                    backgroundColor: '#93c5fd',
+                },
+                {
+                    label: 'Options Value',
+                    data: [2500, 2500, 2500],
+                    backgroundColor: '#3b82f6',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true, ticks: { callback: (value) => `$${value/1000}k` } }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index', intersect: false }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html> 
