@@ -205,6 +205,18 @@ const Dashboard: React.FC = () => {
             Test Mockup
           </button>
         )}
+        <button
+          className={`px-4 py-2 ${activeTab === 'process-explorer' ? 'border-b-2 border-blue-500' : ''}`}
+          onClick={() => setActiveTab('process-explorer')}
+        >
+          Process Explorer
+        </button>
+        <button
+          className={`px-4 py-2 ${activeTab === 'enhanced-mockup' ? 'border-b-2 border-blue-500' : ''}`}
+          onClick={() => setActiveTab('enhanced-mockup')}
+        >
+          Enhanced Mockup
+        </button>
       </div>
       {activeTab === 'dashboard' ? (
         <div className={styles.dashboard}>
@@ -296,11 +308,27 @@ const Dashboard: React.FC = () => {
             </section>
           </main>
         </div>
-      ) : (
+      ) : activeTab === 'mockup' ? (
         <div className="mockup-tab">
           <iframe
             src="/test-mockup/index.html"
             title="vAuto Test Mockup"
+            className="w-full h-[800px] border"
+          />
+        </div>
+      ) : activeTab === 'process-explorer' ? (
+        <div className="process-explorer-tab">
+          <iframe
+            src="/process-explorer.html"
+            title="Interactive Process Explorer"
+            className="w-full h-[800px] border"
+          />
+        </div>
+      ) : (
+        <div className="enhanced-mockup-tab">
+          <iframe
+            src="/enhanced-vauto-mockup.html"
+            title="Enhanced vAuto Mockup"
             className="w-full h-[800px] border"
           />
         </div>
