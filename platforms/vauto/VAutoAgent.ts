@@ -1,5 +1,5 @@
 import { Page } from 'playwright';
-import { BaseAgent as BaseAutomationAgent, TwoFactorConfig } from '../../core/agents/BaseAgent';
+import { BaseAgent, TwoFactorConfig, AgentConfig } from '../../core/agents/BaseAgent';
 import { vAutoSelectors } from './vautoSelectors';
 import { findFeaturesInStickerText, getCheckboxLabels, parseWindowStickerText } from './featureMapping';
 import {
@@ -13,13 +13,10 @@ import { MailgunProvider } from '../../integrations/email/MailgunProvider';
 import { SMTPProvider } from '../../integrations/email/SMTPProvider';
 import * as process from 'process';
 
-export interface VAutoConfig {
+export interface VAutoConfig extends AgentConfig {
   username: string;
   password: string;
   dealershipId?: string;
-  headless?: boolean;
-  slowMo?: number;
-  screenshotOnError?: boolean;
   mailgunConfig?: any;
 }
 
@@ -42,17 +39,13 @@ export interface VAutoRunResult {
   errors: string[];
 }
 
-export class VAutoAgent extends BaseAutomationAgent {
-  private mailgunService: MailgunService | null = null;
+export class VAutoAgent extends BaseAgent {
+  private mailgunService: MailgunProvider | null = null;
   protected currentRunResult: VAutoRunResult;
+  protected page: Page | null = null;
   
   constructor(private vAutoConfig: VAutoConfig) {
-    super({
-      headless: vAutoConfig.headless || false,
-      slowMo: vAutoConfig.slowMo || 100,
-      screenshotOnError: vAutoConfig.screenshotOnError !== false,
-      notificationsEnabled: true
-    });
+    super(vAutoConfig);
     
     this.logger = new Logger('VAutoAgent');
     
@@ -69,8 +62,18 @@ export class VAutoAgent extends BaseAutomationAgent {
     
     // Initialize Mailgun if config provided
     if (vAutoConfig.mailgunConfig) {
-      this.mailgunService = new MailgunService(vAutoConfig.mailgunConfig);
+      this.mailgunService = new MailgunProvider(vAutoConfig.mailgunConfig);
     }
+  }
+
+  async initialize(): Promise<void> {
+    await super.initialize();
+    this.page = this.browser.currentPage;
+  }
+
+  // Implement abstract method from BaseAgent
+  async processData(): Promise<VAutoRunResult> {
+    return await this.processInventory();
   }
   
   async login(): Promise<boolean> {
@@ -88,13 +91,13 @@ export class VAutoAgent extends BaseAutomationAgent {
       
       // Enter username
       await this.page.fill(vAutoSelectors.login.username, this.vAutoConfig.username);
-      await reliableClick(this.page, vAutoSelectors.login.nextButton);
+      await reliableClick(this.page, vAutoSelectors.login.nextButton, 'Next Button');
       await this.page.waitForLoadState('networkidle');
       
       // Enter password
       await this.page.fill(vAutoSelectors.login.password, this.vAutoConfig.password);
       await this.takeScreenshot('vauto-credentials-entered');
-      await reliableClick(this.page, vAutoSelectors.login.submit);
+      await reliableClick(this.page, vAutoSelectors.login.submit, 'Submit Button');
       
       // Handle 2FA if needed
       const needs2FA = await this.check2FARequired();
@@ -103,7 +106,7 @@ export class VAutoAgent extends BaseAutomationAgent {
           enabled: true,
           codeInputSelector: vAutoSelectors.login.otpInput,
           submitSelector: vAutoSelectors.login.otpSubmit,
-          successIndicator: vAutoSelectors.login.successIndicator || vAutoSelectors.dashboard.url,
+          successIndicator: vAutoSelectors.dashboard.url,
           timeout: 300000
         };
         
@@ -112,16 +115,10 @@ export class VAutoAgent extends BaseAutomationAgent {
         if (twoFactorMethod === 'sms') {
           // Set webhook URL for polling SMS code
           twoFactorConfig.webhookUrl = `${process.env.PUBLIC_URL || 'http://localhost:3000'}/api/2fa/latest`;
-          
-          // Optionally select SMS option if there's a choice
-          try {
-            await reliableClick(this.page, vAutoSelectors.login.smsOptionSelector); // Add this selector in vautoSelectors.ts if needed
-          } catch (e) {
-            this.logger.debug('No SMS option selector found or not needed');
-          }
+          this.logger.debug('Using SMS method for 2FA');
         } else {
-          // For email, set email selector if needed
-          twoFactorConfig.emailSelector = vAutoSelectors.login.emailOptionSelector; // Add if necessary
+          // Email method selected - no additional selectors needed for now
+          this.logger.debug('Using email method for 2FA');
         }
         
         const twoFASuccess = await this.handle2FA(twoFactorConfig);
@@ -172,7 +169,7 @@ export class VAutoAgent extends BaseAutomationAgent {
     }
     
     // Click View Inventory
-    await reliableClick(this.page, vAutoSelectors.inventory.viewInventoryLink);
+    await reliableClick(this.page, vAutoSelectors.inventory.viewInventoryLink, 'View Inventory Link');
     await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
     await this.takeScreenshot('vauto-inventory-page');
   }
@@ -183,11 +180,11 @@ export class VAutoAgent extends BaseAutomationAgent {
     this.logger.info('Applying inventory filters for age 0-1 days');
     
     // Click filter button
-    await reliableClick(this.page, vAutoSelectors.inventory.filterButton);
+    await reliableClick(this.page, vAutoSelectors.inventory.filterButton, 'Filter Button');
     await this.page.waitForTimeout(1000);
     
     // Enable age filter
-    await reliableClick(this.page, vAutoSelectors.inventory.ageFilterLabel);
+    await reliableClick(this.page, vAutoSelectors.inventory.ageFilterLabel, 'Age Filter Label');
     
     // Fill age range
     await this.page.fill(vAutoSelectors.inventory.ageMinInput, '0');
@@ -196,7 +193,7 @@ export class VAutoAgent extends BaseAutomationAgent {
     await this.takeScreenshot('vauto-filters-set');
     
     // Apply filters
-    await reliableClick(this.page, vAutoSelectors.inventory.applyFilter);
+    await reliableClick(this.page, vAutoSelectors.inventory.applyFilter, 'Apply Filter Button');
     await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
     
     this.logger.info('Inventory filters applied');
@@ -246,7 +243,7 @@ export class VAutoAgent extends BaseAutomationAgent {
         // Check for next page
         hasNextPage = await this.hasNextPage();
         if (hasNextPage) {
-          await reliableClick(this.page, vAutoSelectors.inventory.nextPageButton);
+          await reliableClick(this.page, vAutoSelectors.inventory.nextPageButton, 'Next Page Button');
           await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
           pageNumber++;
         }
@@ -283,7 +280,7 @@ export class VAutoAgent extends BaseAutomationAgent {
       this.logger.info(`Processing vehicle: ${result.vin}`);
       
       // Navigate to Factory Equipment tab
-      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.factoryEquipmentTab);
+      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.factoryEquipmentTab, 'Factory Equipment Tab');
       await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
       
       // Get window sticker content
@@ -304,7 +301,7 @@ export class VAutoAgent extends BaseAutomationAgent {
       result.featuresUpdated = updatedFeatures;
       
       // Save changes
-      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.saveButton);
+      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.saveButton, 'Save Button');
       await this.page!.waitForTimeout(2000); // Wait for save to complete
       
       result.processed = true;
@@ -497,7 +494,6 @@ Generated by vAuto Automation Agent
     await this.mailgunService.sendNotificationEmail(
       'vAuto Automation Report',
       report,
-      recipients,
       this.currentRunResult.failedVehicles > 0
     );
   }

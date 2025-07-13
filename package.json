@@ -4,7 +4,7 @@
   "description": "Generic browser automation framework for web scraping and interaction with Operations Dashboard",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.production.json",
     "start": "node dist/server.js",
     "automation": "ts-node scripts/run-automation.ts",
     "automation:help": "ts-node scripts/run-automation.ts --help",

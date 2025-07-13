@@ -52,6 +52,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
 app.use(express.static(path.join(__dirname, '../dist/frontend')));
+// Serve vAuto mockup test site statically
+app.use('/test-mockup', express.static(path.join(__dirname, '../tests/fixtures/vauto-mockup')));
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -184,7 +186,7 @@ app.post('/webhooks/twilio/sms', (req, res) => {
   } else {
     logger.warn('Received SMS webhook with no Body');
   }
-  res.status(200).send('<Response></Response>');
+  return res.status(200).send('<Response></Response>');
 });
 
 // Endpoint for agent to fetch latest 2FA code

@@ -23,11 +23,9 @@ export interface SchedulerConfig {
 export class VAutoScheduler {
   private logger: Logger;
   private jobs: cron.ScheduledTask[] = [];
-  private notificationService: NotificationService;
   
   constructor(private config: SchedulerConfig) {
     this.logger = new Logger('VAutoScheduler');
-    this.notificationService = new NotificationService();
   }
   
   /**
@@ -76,13 +74,6 @@ export class VAutoScheduler {
     
     if (!this.config.testMode) {
       this.logger.info(`Scheduler started with ${this.jobs.length} active jobs`);
-      
-      // Send startup notification
-      await this.notificationService.sendNotification(
-        'vAuto Scheduler Started',
-        `The vAuto automation scheduler has been started with ${this.jobs.length} active dealership jobs.`,
-        this.getAllRecipientEmails()
-      );
     }
   }
   
@@ -98,11 +89,7 @@ export class VAutoScheduler {
     
     this.jobs = [];
     
-    await this.notificationService.sendNotification(
-      'vAuto Scheduler Stopped',
-      'The vAuto automation scheduler has been stopped.',
-      this.getAllRecipientEmails()
-    );
+    this.logger.info('vAuto scheduler stopped');
   }
   
   /**
@@ -138,25 +125,14 @@ export class VAutoScheduler {
       const duration = (Date.now() - startTime.getTime()) / 1000;
       this.logger.info(`Completed vAuto automation for ${dealership.name} in ${duration.toFixed(1)}s`);
       
-      // Send success notification if there were any issues
+      // Log completion status
       if (results.failedVehicles > 0) {
-        await this.notificationService.sendNotification(
-          `vAuto Run Completed with Issues - ${dealership.name}`,
-          `Processed ${results.totalVehicles} vehicles. ${results.successfulVehicles} successful, ${results.failedVehicles} failed.`,
-          dealership.recipientEmails
-        );
+        this.logger.warn(`vAuto run completed with issues for ${dealership.name}: ${results.failedVehicles}/${results.totalVehicles} failed`);
       }
       
     } catch (error) {
       // Log error
       this.logger.error(`vAuto automation failed for ${dealership.name}`, error);
-      
-      // Send error notification
-      await this.notificationService.sendError(
-        `vAuto Automation Failed - ${dealership.name}`,
-        error,
-        dealership.recipientEmails
-      );
       
     } finally {
       // Always cleanup

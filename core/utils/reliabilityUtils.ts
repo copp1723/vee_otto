@@ -394,6 +394,74 @@ export async function reliableType(
   return await engine.smartType(selector, text, { humanName });
 }
 
+export async function scrapeInlineContent(
+  page: Page,
+  selector: string,
+  options: { timeout?: number; waitForText?: boolean } = {}
+): Promise<string> {
+  const { timeout = 5000, waitForText = false } = options;
+  
+  try {
+    const element = page.locator(selector).first();
+    await element.waitFor({ state: 'visible', timeout });
+    
+    if (waitForText) {
+      await element.waitFor({ state: 'attached', timeout });
+    }
+    
+    const content = await element.textContent();
+    return content || '';
+  } catch (error) {
+    console.warn(`Failed to scrape content from ${selector}:`, error);
+    return '';
+  }
+}
+
+export async function setCheckbox(
+  page: Page,
+  selector: string,
+  shouldBeChecked: boolean
+): Promise<boolean> {
+  try {
+    const checkbox = page.locator(selector).first();
+    await checkbox.waitFor({ state: 'visible', timeout: 5000 });
+    
+    const isCurrentlyChecked = await checkbox.isChecked();
+    
+    if (isCurrentlyChecked !== shouldBeChecked) {
+      await checkbox.setChecked(shouldBeChecked);
+    }
+    
+    return true;
+  } catch (error) {
+    console.warn(`Failed to set checkbox ${selector}:`, error);
+    return false;
+  }
+}
+
+export async function waitForLoadingToComplete(
+  page: Page,
+  loadingSelectors: string[],
+  timeout: number = 10000
+): Promise<void> {
+  try {
+    // Wait for all loading indicators to disappear
+    for (const selector of loadingSelectors) {
+      try {
+        const loadingElement = page.locator(selector).first();
+        await loadingElement.waitFor({ state: 'hidden', timeout: timeout / loadingSelectors.length });
+      } catch {
+        // If selector doesn't exist, that's fine - it means no loading indicator
+      }
+    }
+    
+    // Also wait for network idle as a backup
+    await page.waitForLoadState('networkidle', { timeout: Math.min(timeout, 5000) });
+  } catch (error) {
+    console.warn('Loading wait timed out, continuing anyway');
+  }
+}
+
 export async function withRetry<T>(
   operation: () => Promise<T>,
   options: RetryOptions

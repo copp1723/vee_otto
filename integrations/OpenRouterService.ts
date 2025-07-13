@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Logger } from '../utils/Logger';
+import { Logger } from '../core/utils/Logger';
 
 export interface OpenRouterConfig {
   apiKey: string;

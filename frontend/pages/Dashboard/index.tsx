@@ -15,6 +15,8 @@ import { webSocketService } from '../../services/webSocketService';
 import styles from './Dashboard.module.css';
 
 const Dashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const isDev = process.env.NODE_ENV !== 'production';
   // State management
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [actionQueue, setActionQueue] = useState<ActionQueueItem[]>([]);
@@ -185,82 +187,110 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className={styles.dashboard}>
-      {/* Header */}
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <h1 className={styles.title}>VAUTO INTELLIGENCE SUITE</h1>
-          <div className={styles.statusIndicator}>
-            <div 
-              className={`${styles.statusDot} ${
-                systemStatus?.operational ? '' : styles.offline
-              }`}
-              aria-label={systemStatus?.operational ? 'System operational' : 'System offline'}
-            />
-            <span className={styles.statusText}>
-              {systemStatus?.operational ? 'Operational' : 'Offline'}
-              {systemStatus?.activeAgents && (
-                <> • {systemStatus.activeAgents} agents active</>
-              )}
-            </span>
-          </div>
+    <div className={styles.dashboardContainer}>
+      <div className="tabs mb-4 border-b">
+        <button
+          className={`px-4 py-2 ${activeTab === 'dashboard' ? 'border-b-2 border-blue-500' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+        >
+          Dashboard
+        </button>
+        {isDev && (
+          <button
+            className={`px-4 py-2 ${activeTab === 'mockup' ? 'border-b-2 border-blue-500' : ''}`}
+            onClick={() => setActiveTab('mockup')}
+          >
+            Test Mockup
+          </button>
+        )}
+      </div>
+      {activeTab === 'dashboard' ? (
+        <div className={styles.dashboard}>
+          {/* Header */}
+          <header className={styles.header}>
+            <div className={styles.headerContent}>
+              <h1 className={styles.title}>VAUTO INTELLIGENCE SUITE</h1>
+              <div className={styles.statusIndicator}>
+                <div 
+                  className={`${styles.statusDot} ${
+                    systemStatus?.operational ? '' : styles.offline
+                  }`}
+                  aria-label={systemStatus?.operational ? 'System operational' : 'System offline'}
+                />
+                <span className={styles.statusText}>
+                  {systemStatus?.operational ? 'Operational' : 'Offline'}
+                  {systemStatus?.activeAgents && (
+                    <> • {systemStatus.activeAgents} agents active</>
+                  )}
+                </span>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className={styles.container}>
+            {/* Key Metrics Section */}
+            <section className={styles.metricsGrid} aria-label="Key performance metrics">
+              <MetricTile
+                title="No Price/Pending"
+                value={metrics ? `${metrics.noPricePending.current}/${metrics.noPricePending.total}` : '...'}
+                change={metrics ? `${metrics.noPricePending.percentageReduction}% reduction` : undefined}
+                changeType="positive"
+                loading={metricsLoading}
+              />
+              <MetricTile
+                title="Time Saved Today"
+                value={metrics?.timeSaved.formatted || '...'}
+                change={metrics ? `${metrics.timeSaved.hours} hours` : undefined}
+                changeType="positive"
+                loading={metricsLoading}
+              />
+              <MetricTile
+                title="Value Protected"
+                value={metrics?.valueProtected.formatted || '...'}
+                change={metrics ? formatMetricValue(metrics.valueProtected.amount, 'currency') : undefined}
+                changeType="positive"
+                loading={metricsLoading}
+              />
+            </section>
+
+            {/* Action Queue and Recent Completions */}
+            <section className={styles.contentGrid}>
+              <div className={styles.section}>
+                <ActionQueue
+                  items={actionQueue}
+                  onProcessAll={handleProcessAll}
+                  onViewAll={handleViewAll}
+                  loading={queueLoading}
+                />
+              </div>
+              
+              <div className={styles.section}>
+                <RecentCompletions
+                  completions={recentCompletions}
+                  loading={completionsLoading}
+                />
+              </div>
+            </section>
+
+            {/* Performance Chart */}
+            <section className={`${styles.section} ${styles.chartSection}`}>
+              <PerformanceChart
+                data={performanceData}
+                loading={chartLoading}
+              />
+            </section>
+          </main>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className={styles.container}>
-        {/* Key Metrics Section */}
-        <section className={styles.metricsGrid} aria-label="Key performance metrics">
-          <MetricTile
-            title="No Price/Pending"
-            value={metrics ? `${metrics.noPricePending.current}/${metrics.noPricePending.total}` : '...'}
-            change={metrics ? `${metrics.noPricePending.percentageReduction}% reduction` : undefined}
-            changeType="positive"
-            loading={metricsLoading}
+      ) : (
+        <div className="mockup-tab">
+          <iframe
+            src="/test-mockup/index.html"
+            title="vAuto Test Mockup"
+            className="w-full h-[800px] border"
           />
-          <MetricTile
-            title="Time Saved Today"
-            value={metrics?.timeSaved.formatted || '...'}
-            change={metrics ? `${metrics.timeSaved.hours} hours` : undefined}
-            changeType="positive"
-            loading={metricsLoading}
-          />
-          <MetricTile
-            title="Value Protected"
-            value={metrics?.valueProtected.formatted || '...'}
-            change={metrics ? formatMetricValue(metrics.valueProtected.amount, 'currency') : undefined}
-            changeType="positive"
-            loading={metricsLoading}
-          />
-        </section>
-
-        {/* Action Queue and Recent Completions */}
-        <section className={styles.contentGrid}>
-          <div className={styles.section}>
-            <ActionQueue
-              items={actionQueue}
-              onProcessAll={handleProcessAll}
-              onViewAll={handleViewAll}
-              loading={queueLoading}
-            />
-          </div>
-          
-          <div className={styles.section}>
-            <RecentCompletions
-              completions={recentCompletions}
-              loading={completionsLoading}
-            />
-          </div>
-        </section>
-
-        {/* Performance Chart */}
-        <section className={`${styles.section} ${styles.chartSection}`}>
-          <PerformanceChart
-            data={performanceData}
-            loading={chartLoading}
-          />
-        </section>
-      </main>
+        </div>
+      )}
     </div>
   );
 };

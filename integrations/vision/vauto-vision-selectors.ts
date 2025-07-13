@@ -631,7 +631,7 @@ export class VAutoVisionSelectorUtils {
    * Get workflow configuration
    */
   static getWorkflowConfig(workflowName: string) {
-    return VAUTO_VISION_CONFIGS[workflowName];
+    return VAUTO_VISION_CONFIGS[workflowName as keyof typeof VAUTO_VISION_CONFIGS];
   }
 
   /**
