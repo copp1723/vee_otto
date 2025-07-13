@@ -134,3 +134,51 @@ export class VAutoAgentWithDashboard extends VAutoAgent {
     return yearCodes[yearChar] || new Date().getFullYear();
   }
 }
+
+// Main execution - Create and run the automation
+async function main() {
+  try {
+    const config: VAutoConfig = {
+      username: process.env.VAUTO_USERNAME!,
+      password: process.env.VAUTO_PASSWORD!,
+      headless: process.env.HEADLESS !== 'false', // Note: inverted because env var is string
+      slowMo: parseInt(process.env.SLOW_MO || '0'),
+      timeout: 30000,
+      screenshotOnError: process.env.SCREENSHOT_ON_FAILURE === 'true'
+    };
+
+    console.log('🚀 Starting VAutoAgent with Dashboard...');
+    console.log(`- Username: ${config.username}`);
+    console.log(`- Headless: ${config.headless}`);
+    console.log(`- Slow Motion: ${config.slowMo}ms`);
+    console.log(`- Screenshot on Error: ${config.screenshotOnError}`);
+
+    const agent = new VAutoAgentWithDashboard(config);
+    
+    // Initialize the agent
+    await agent.initialize();
+    
+    // Login first
+    console.log('🔐 Logging in...');
+    const loginSuccess = await agent.login();
+    
+    if (!loginSuccess) {
+      throw new Error('Login failed');
+    }
+    
+    console.log('🌐 Browser should now be visible and logged in...');
+    console.log('📋 Starting inventory processing...');
+    
+    const result = await agent.processInventory();
+    
+    console.log('✅ Automation completed!', result);
+  } catch (error) {
+    console.error('❌ Automation failed:', error);
+    process.exit(1);
+  }
+}
+
+// Only run if this file is executed directly
+if (require.main === module) {
+  main();
+}

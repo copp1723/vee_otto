@@ -99,6 +99,60 @@ export class VAutoAgent extends BaseAgent {
       await this.takeScreenshot('vauto-credentials-entered');
       await reliableClick(this.page, vAutoSelectors.login.submit, 'Submit Button');
       
+      // Wait for potential 2FA selection page
+      await this.page.waitForLoadState('networkidle');
+      
+      // Check if 2FA selection is needed (now only phone option exists)
+      try {
+        await this.takeScreenshot('vauto-2fa-options-page');
+        
+        // Look for "Select" buttons
+        const selectButtons = await this.page.locator('button:has-text("Select")').all();
+        this.logger.info(`Found ${selectButtons.length} Select buttons`);
+        
+        if (selectButtons.length > 0) {
+          // With only phone option, click the first (and only) Select button
+          this.logger.info('Clicking the Select button for phone 2FA');
+          await selectButtons[0].click();
+          await this.page.waitForLoadState('networkidle');
+          await this.takeScreenshot('vauto-phone-2fa-selected');
+        } else {
+          this.logger.info('No Select buttons found, checking for alternative methods');
+          
+          // Alternative: Check for any button/link that might trigger 2FA
+          const possibleSelectors = [
+            'button:has-text("Continue")',
+            'button:has-text("Next")',
+            'button:has-text("Send")',
+            'a:has-text("Select")',
+            'div[role="button"]:has-text("Select")'
+          ];
+          
+          let clicked = false;
+          for (const selector of possibleSelectors) {
+            try {
+              const element = await this.page.locator(selector).first();
+              if (await element.isVisible()) {
+                this.logger.info(`Found alternative selector: ${selector}`);
+                await element.click();
+                await this.page.waitForLoadState('networkidle');
+                clicked = true;
+                break;
+              }
+            } catch (e) {
+              // Continue trying other selectors
+            }
+          }
+          
+          if (!clicked) {
+            this.logger.warn('Could not find any 2FA selection button - proceeding anyway');
+          }
+        }
+      } catch (error) {
+        this.logger.warn('Error while trying to select phone 2FA option', error);
+        await this.takeScreenshot('vauto-2fa-selection-error');
+      }
+      
       // Handle 2FA if needed
       const needs2FA = await this.check2FARequired();
       if (needs2FA) {
@@ -113,9 +167,10 @@ export class VAutoAgent extends BaseAgent {
         const twoFactorMethod = process.env.TWO_FACTOR_METHOD || 'email';
         
         if (twoFactorMethod === 'sms') {
-          // Set webhook URL for polling SMS code
-          twoFactorConfig.webhookUrl = `${process.env.PUBLIC_URL || 'http://localhost:3000'}/api/2fa/latest`;
-          this.logger.debug('Using SMS method for 2FA');
+          // Set webhook URL for polling SMS code - use port 10000 where our server is running
+          const serverPort = process.env.PORT || '10000';
+          twoFactorConfig.webhookUrl = `${process.env.PUBLIC_URL || `http://localhost:${serverPort}`}/api/2fa/latest`;
+          this.logger.info(`Using SMS method for 2FA with webhook URL: ${twoFactorConfig.webhookUrl}`);
         } else {
           // Email method selected - no additional selectors needed for now
           this.logger.debug('Using email method for 2FA');
@@ -131,13 +186,42 @@ export class VAutoAgent extends BaseAgent {
       await this.page.waitForLoadState('networkidle');
       const currentUrl = this.page.url();
       
-      if (currentUrl.includes('dashboard') || currentUrl.includes('provision')) {
+      this.logger.info(`Post-login URL: ${currentUrl}`);
+      
+      // Check for various success indicators - be more flexible
+      if (currentUrl.includes('dashboard') ||
+          currentUrl.includes('provision') ||
+          currentUrl.includes('vauto.app') ||
+          currentUrl.includes('inventory')) {
         this.logger.info('vAuto login successful');
         await this.takeScreenshot('vauto-login-success');
         return true;
       }
       
-      throw new Error('Login verification failed - not on dashboard');
+      // If we're still on signin page, check if 2FA is needed
+      if (currentUrl.includes('signin')) {
+        this.logger.warn('Still on signin page - checking if 2FA is needed');
+        await this.takeScreenshot('vauto-login-still-signin');
+        
+        // Check if we're waiting for 2FA
+        const needs2FA = await this.check2FARequired();
+        if (needs2FA) {
+          this.logger.info('2FA appears to be required - treating as successful login pending 2FA');
+          // Treat this as successful login since 2FA will handle the rest
+          return true;
+        } else {
+          throw new Error(`Login may have failed - still on signin page without 2FA: ${currentUrl}`);
+        }
+      }
+      
+      // For any other coxautoinc.com domain that's not signin, consider it potentially successful
+      if (currentUrl.includes('coxautoinc.com')) {
+        this.logger.info('On Cox domain but not signin - assuming login successful');
+        await this.takeScreenshot('vauto-login-success');
+        return true;
+      }
+      
+      throw new Error(`Login verification failed - unexpected URL: ${currentUrl}`);
       
     } catch (error) {
       this.logger.error('vAuto login failed', error);
@@ -148,9 +232,22 @@ export class VAutoAgent extends BaseAgent {
   
   private async check2FARequired(): Promise<boolean> {
     try {
-      // Check if OTP input is visible
+      // Check if OTP input is visible (after selecting 2FA method)
       const otpVisible = await this.page!.locator(vAutoSelectors.login.otpInput).isVisible();
-      return otpVisible;
+      if (otpVisible) return true;
+      
+      // Check if we're on a 2FA selection page (before selecting method)
+      const selectButtons = await this.page!.locator('button:has-text("Select")').count();
+      if (selectButtons > 0) return true;
+      
+      // Check for other 2FA indicators
+      const pageText = await this.page!.textContent('body') || '';
+      const has2FAIndicators = pageText.includes('verification') ||
+                              pageText.includes('authenticate') ||
+                              pageText.includes('factor') ||
+                              pageText.includes('code');
+      
+      return has2FAIndicators;
     } catch {
       return false;
     }

@@ -139,19 +139,30 @@ export abstract class BaseAgent {
 
       if (twoFactorConfig.webhookUrl) {
         // Poll webhook for code
+        this.logger.info(`Polling webhook for 2FA code at: ${twoFactorConfig.webhookUrl}`);
+        let pollCount = 0;
+        
         while (!code && (Date.now() - startTime < timeout)) {
+          pollCount++;
           try {
+            this.logger.debug(`Poll attempt ${pollCount} to ${twoFactorConfig.webhookUrl}`);
             const response = await fetch(twoFactorConfig.webhookUrl);
+            
             if (response.ok) {
               const data = await response.json();
+              this.logger.info(`Webhook response: ${JSON.stringify(data)}`);
+              
               if (data.code) {
                 code = data.code;
-                this.logger.info('Received 2FA code from webhook');
+                this.logger.info(`Successfully received 2FA code from webhook: ${code}`);
               }
+            } else {
+              this.logger.debug(`Webhook returned status ${response.status}: ${response.statusText}`);
             }
           } catch (fetchErr) {
-            this.logger.debug('Webhook poll failed, retrying...', fetchErr);
+            this.logger.warn(`Webhook poll ${pollCount} failed:`, fetchErr);
           }
+          
           await new Promise(resolve => setTimeout(resolve, 5000));
         }
       } else if (this.emailProvider) {

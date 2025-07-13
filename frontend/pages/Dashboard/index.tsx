@@ -13,6 +13,7 @@ import {
   SystemStatus 
 } from '../../types';
 import { mockApiService } from '../../services/mockData';
+import { apiService } from '../../services/apiService';
 import { webSocketService } from '../../services/webSocketService';
 import styles from './Dashboard.module.css';
 
@@ -31,6 +32,7 @@ const Dashboard: React.FC = () => {
   const [queueLoading, setQueueLoading] = useState(true);
   const [completionsLoading, setCompletionsLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
+  const [automationLoading, setAutomationLoading] = useState(false);
   
   // Error states
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,23 @@ const Dashboard: React.FC = () => {
     console.log('View All clicked - would navigate to full queue view');
     // In a real application, this would navigate to a full queue page
   }, []);
+
+  // Handle Start Automation
+  const handleStartAutomation = useCallback(async () => {
+    try {
+      setAutomationLoading(true);
+      setError(null);
+      const result = await apiService.startAutomation();
+      console.log('Automation started:', result.message);
+      // Refresh dashboard data after starting automation
+      await fetchDashboardData();
+    } catch (err) {
+      console.error('Failed to start automation:', err);
+      setError('Failed to start automation. Please try again.');
+    } finally {
+      setAutomationLoading(false);
+    }
+  }, [fetchDashboardData]);
 
   // WebSocket event handlers
   useEffect(() => {
@@ -224,19 +243,40 @@ const Dashboard: React.FC = () => {
           <header className={styles.header}>
             <div className={styles.headerContent}>
               <h1 className={styles.title}>VAUTO INTELLIGENCE SUITE</h1>
-              <div className={styles.statusIndicator}>
-                <div 
-                  className={`${styles.statusDot} ${
-                    systemStatus?.operational ? '' : styles.offline
-                  }`}
-                  aria-label={systemStatus?.operational ? 'System operational' : 'System offline'}
-                />
-                <span className={styles.statusText}>
-                  {systemStatus?.operational ? 'Operational' : 'Offline'}
-                  {systemStatus?.activeAgents && (
-                    <> • {systemStatus.activeAgents} agents active</>
-                  )}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <button
+                  onClick={handleStartAutomation}
+                  disabled={automationLoading || !systemStatus?.operational}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: automationLoading ? '#6c757d' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: automationLoading || !systemStatus?.operational ? 'not-allowed' : 'pointer',
+                    opacity: automationLoading || !systemStatus?.operational ? 0.6 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={!systemStatus?.operational ? 'System must be operational to start automation' : ''}
+                >
+                  {automationLoading ? 'Starting...' : 'Start Automation'}
+                </button>
+                <div className={styles.statusIndicator}>
+                  <div
+                    className={`${styles.statusDot} ${
+                      systemStatus?.operational ? '' : styles.offline
+                    }`}
+                    aria-label={systemStatus?.operational ? 'System operational' : 'System offline'}
+                  />
+                  <span className={styles.statusText}>
+                    {systemStatus?.operational ? 'Operational' : 'Offline'}
+                    {systemStatus?.activeAgents && (
+                      <> • {systemStatus.activeAgents} agents active</>
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
           </header>

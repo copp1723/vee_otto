@@ -126,6 +126,14 @@ class ApiService {
       throw new Error(response.data.error || 'Failed to process queue');
     }
   }
+
+  async startAutomation(): Promise<{ message: string }> {
+    const response = await this.axiosInstance.post<ApiResponse<{ message: string }>>('/automation/start');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to start automation');
+    }
+    return response.data.data;
+  }
 }
 
 export const apiService = new ApiService();

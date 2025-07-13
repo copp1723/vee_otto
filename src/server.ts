@@ -343,6 +343,65 @@ app.get('/api/system-status', authenticateToken, async (req: Request, res: Respo
   }
 });
 
+// Start vAuto automation endpoint
+app.post('/api/automation/start', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    logger.info('Starting vAuto automation...');
+    
+    // Import and run the vAuto agent
+    const { VAutoAgentWithDashboard } = await import('../platforms/vauto/VAutoAgentWithDashboard');
+    
+    const config = {
+      username: process.env.VAUTO_USERNAME || '',
+      password: process.env.VAUTO_PASSWORD || '',
+      headless: process.env.HEADLESS === 'false' ? false : true,
+      slowMo: parseInt(process.env.SLOW_MO || '1000'),
+      screenshotOnError: process.env.SCREENSHOT_ON_FAILURE === 'true',
+      maxVehiclesToProcess: parseInt(process.env.MAX_VEHICLES_TO_PROCESS || '1'),
+      readOnlyMode: process.env.READ_ONLY_MODE === 'true',
+      mailgunConfig: process.env.MAILGUN_API_KEY ? {
+        apiKey: process.env.MAILGUN_API_KEY,
+        domain: process.env.MAILGUN_DOMAIN || 'veeotto.ai',
+        from: 'VeeOtto <automation@veeotto.ai>',
+        to: ['notifications@veeotto.ai']
+      } : undefined
+    };
+    
+    // Update system status
+    dashboardData.systemStatus.activeAgents = 1;
+    io.emit('STATUS_UPDATE', dashboardData.systemStatus);
+    
+    // Run automation in background
+    const agent = new VAutoAgentWithDashboard(config);
+    agent.initialize()
+      .then(() => agent.login())
+      .then(() => agent.processInventory())
+      .then(result => {
+        logger.info('Automation completed successfully', result);
+        dashboardData.systemStatus.activeAgents = 0;
+        io.emit('STATUS_UPDATE', dashboardData.systemStatus);
+      })
+      .catch(error => {
+        logger.error('Automation failed', error);
+        dashboardData.systemStatus.activeAgents = 0;
+        io.emit('STATUS_UPDATE', dashboardData.systemStatus);
+      });
+    
+    res.json({
+      success: true,
+      message: 'Automation started',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error starting automation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start automation',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Process all items endpoint
 app.post('/api/process-queue', authenticateToken, async (req: Request, res: Response) => {
   try {

@@ -1,11 +1,12 @@
 // vAuto UI selectors configuration
 export const vAutoSelectors = {
   login: {
-    url: 'https://app.vauto.com/login',
+    url: 'https://vauto.signin.coxautoinc.com/?solutionID=VAT_prod&clientId=68e5c360aa114799a67e94c4d587ff65',
     username: '//input[@id="username"]',
     nextButton: '//button[contains(text(), "Next")]',
     password: '//input[@type="password"]',
     submit: '//button[@type="submit"]',
+    phoneOption: '//button[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //div[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //span[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //a[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //*[contains(@class, "phone") or contains(@class, "sms") or contains(@class, "text")]',
     otpInput: '//input[contains(@id, "otp")]',
     otpSubmit: '//button[contains(text(), "Verify")]',
   },
