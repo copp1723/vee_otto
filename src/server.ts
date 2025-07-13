@@ -4,7 +4,6 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import twilio from 'twilio';
@@ -50,6 +49,16 @@ const projectRoot = process.env.NODE_ENV === 'production'
   ? path.resolve(process.cwd())
   : path.resolve(__dirname, '../..');
 const dashboardPath = path.join(projectRoot, 'dist', 'dashboard');
+
+// Log paths for debugging
+logger.info('Server paths:', {
+  NODE_ENV: process.env.NODE_ENV,
+  __dirname,
+  cwd: process.cwd(),
+  projectRoot,
+  dashboardPath,
+  dashboardExists: require('fs').existsSync(dashboardPath)
+});
 
 // Middleware
 app.use(cors({
