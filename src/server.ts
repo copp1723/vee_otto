@@ -51,7 +51,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
-app.use(express.static(path.join(__dirname, '../dist/frontend')));
+app.use(express.static(path.join(__dirname, '../dashboard')));
 // Serve vAuto mockup test site statically
 app.use('/test-mockup', express.static(path.join(__dirname, '../tests/fixtures/vauto-mockup')));
 
@@ -419,7 +419,7 @@ export function updateFromAgent(data: {
 
 // Serve frontend for all non-API routes
 app.get('*', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../dist/frontend/index.html'));
+  res.sendFile(path.join(__dirname, '../dashboard/index.html'));
 });
 
 // Start server
