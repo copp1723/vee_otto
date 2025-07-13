@@ -5,7 +5,7 @@ services:
     env: node
     plan: starter
     buildCommand: npm ci && npm run build && npm run dashboard:build && echo "=== BUILD VALIDATION ===" && ls -la dist/ && echo "=== CHECKING SERVER FILE ===" && ls -la dist/src/ || echo "No src directory in dist"
-    startCommand: node ../dist/src/server.js
+    startCommand: node dist/src/server.js
     envVars:
       - key: NODE_ENV
         value: production
