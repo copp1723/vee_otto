@@ -407,11 +407,12 @@ app.post('/api/automation/start', authenticateToken, async (req: Request, res: R
         io.emit('STATUS_UPDATE', dashboardData.systemStatus);
       });
     
-    res.json({
+    const response: ApiResponse<{ message: string }> = {
       success: true,
-      message: 'Automation started',
+      data: { message: 'Automation started' },
       timestamp: new Date().toISOString()
-    });
+    };
+    res.json(response);
   } catch (error) {
     logger.error('Error starting automation:', error);
     res.status(500).json({
