@@ -131,10 +131,14 @@ mkdir -p logs screenshots downloads
 # Set proper permissions
 chmod 755 logs screenshots downloads
 
-# Copy static files for frontend deployment
-echo "📋 Preparing static files..."
-mkdir -p build/frontend
-cp -r frontend/public/* build/frontend/ 2>/dev/null || true
+# Copy dashboard build to the correct location
+echo "📋 Copying dashboard files..."
+mkdir -p build/dist
+cp -r dist/dashboard build/dist/ 2>/dev/null || {
+    echo "⚠️ Warning: Could not copy dashboard files"
+    echo "  Looking for dashboard at: $(pwd)/dist/dashboard"
+    ls -la dist/ 2>/dev/null || echo "  dist/ directory not found"
+}
 
 # Create startup script with browser validation
 echo "📝 Creating startup script..."
