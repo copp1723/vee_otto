@@ -147,10 +147,16 @@ ls -la dist/ 2>/dev/null || echo "No dist directory after dashboard build"
 
 # Verify builds were successful
 echo "📦 Verifying builds..."
-if [ -f "build/src/server.js" ]; then
+if [ -f "dist/src/server.js" ]; then
     echo "✅ Backend built successfully"
 else
-    echo "❌ Backend build failed - build/src/server.js not found"
+    echo "❌ Backend build failed - dist/src/server.js not found"
+    echo "📂 Contents of dist directory:"
+    ls -la dist/ 2>/dev/null || echo "dist directory does not exist"
+    if [ -d "dist/src" ]; then
+        echo "📂 Contents of dist/src directory:"
+        ls -la dist/src/ 2>/dev/null || echo "dist/src directory does not exist"
+    fi
     exit 1
 fi
 
@@ -228,14 +234,14 @@ fi
 
 # Start the application
 echo "🎯 Starting server..."
-exec node src/server.js
+exec node ../dist/src/server.js
 EOF
 
 chmod +x build/startup.sh
 
 echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
-echo "  - Backend: build/"
+echo "  - Backend: dist/"
 echo "  - Frontend: dist/dashboard/"
 echo "  - Runtime dirs: logs/, screenshots/, downloads/"
 echo "  - Browser validation: build/validate-browser.js"
