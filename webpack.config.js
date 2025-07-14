@@ -3,9 +3,81 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+const fs = require('fs');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
+  const projectRoot = path.resolve(__dirname);
+  const frontendPublicPath = path.join(projectRoot, 'frontend', 'public');
+  const frontendIndexPath = path.join(projectRoot, 'frontend', 'index.tsx');
+
+  // Check if required files exist
+  const frontendPublicExists = fs.existsSync(frontendPublicPath);
+  const frontendIndexExists = fs.existsSync(frontendIndexPath);
+
+  console.log('🔧 Webpack Configuration:');
+  console.log(`  Project Root: ${projectRoot}`);
+  console.log(`  Frontend Public Path: ${frontendPublicPath} (exists: ${frontendPublicExists})`);
+  console.log(`  Frontend Index Path: ${frontendIndexPath} (exists: ${frontendIndexExists})`);
+
+  if (!frontendIndexExists) {
+    throw new Error(`Frontend entry point not found: ${frontendIndexPath}`);
+  }
+
+  const plugins = [
+    new webpack.DefinePlugin({
+      'process.env': {
+        NODE_ENV: JSON.stringify(isProduction ? 'production' : 'development'),
+        REACT_APP_API_URL: JSON.stringify(process.env.REACT_APP_API_URL || '')
+      }
+    })
+  ];
+
+  // Add HtmlWebpackPlugin with fallback template
+  if (frontendPublicExists && fs.existsSync(path.join(frontendPublicPath, 'index.html'))) {
+    plugins.push(new HtmlWebpackPlugin({
+      template: path.join(frontendPublicPath, 'index.html'),
+      title: 'vAuto Intelligence Suite',
+    }));
+  } else {
+    // Create a minimal HTML template if the public directory doesn't exist
+    console.log('⚠️ Creating fallback HTML template');
+    plugins.push(new HtmlWebpackPlugin({
+      template: 'data:text/html,<!DOCTYPE html><html><head><title>vAuto Intelligence Suite</title></head><body><div id="root"></div></body></html>',
+      title: 'vAuto Intelligence Suite',
+    }));
+  }
+
+  // Add CopyWebpackPlugin only if the public directory exists and has files to copy
+  if (frontendPublicExists) {
+    const publicFiles = fs.readdirSync(frontendPublicPath).filter(file => file !== 'index.html');
+    if (publicFiles.length > 0) {
+      console.log(`📁 Copying ${publicFiles.length} files from frontend/public`);
+      plugins.push(new CopyWebpackPlugin({
+        patterns: [
+          { 
+            from: frontendPublicPath,
+            to: '.', 
+            globOptions: {
+              ignore: ['**/index.html']
+            },
+            noErrorOnMissing: true
+          }
+        ]
+      }));
+    } else {
+      console.log('📁 No files to copy from frontend/public (only index.html exists)');
+    }
+  } else {
+    console.log('⚠️ frontend/public directory not found, skipping file copy');
+  }
+
+  // Add CSS extraction plugin for production
+  if (isProduction) {
+    plugins.push(new MiniCssExtractPlugin({
+      filename: '[name].[contenthash].css',
+    }));
+  }
 
   return {
     entry: './frontend/index.tsx',
@@ -65,40 +137,15 @@ module.exports = (env, argv) => {
         },
       ],
     },
-    plugins: [
-      new webpack.DefinePlugin({
-        'process.env': {
-          NODE_ENV: JSON.stringify(isProduction ? 'production' : 'development'),
-          REACT_APP_API_URL: JSON.stringify(process.env.REACT_APP_API_URL || '')
-        }
-      }),
-      new HtmlWebpackPlugin({
-        template: './frontend/public/index.html',
-        title: 'vAuto Intelligence Suite',
-      }),
-      new CopyWebpackPlugin({
-        patterns: [
-          { 
-            from: 'frontend/public',
-            to: '.', 
-            globOptions: {
-              ignore: ['**/index.html']
-            }
-          }
-        ]
-      }),
-      ...(isProduction ? [new MiniCssExtractPlugin({
-        filename: '[name].[contenthash].css',
-      })] : []),
-    ],
+    plugins,
     devServer: {
       static: [
         {
           directory: path.join(__dirname, 'dist/dashboard'),
         },
-        {
-          directory: path.join(__dirname, 'frontend/public'),
-        }
+        ...(frontendPublicExists ? [{
+          directory: frontendPublicPath,
+        }] : [])
       ],
       compress: true,
       port: 8080,
