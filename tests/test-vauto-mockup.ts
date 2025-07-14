@@ -54,7 +54,7 @@ class VAutoMockupTest {
   async initialize(): Promise<void> {
     this.browser = await chromium.launch({
       headless: false,
-      slowMo: 500 // Slow down for visual inspection
+      slowMo: 2000 // Much slower for visual inspection
     });
     
     this.context = await this.browser.newContext({

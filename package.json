@@ -28,6 +28,8 @@
     "vauto:mockup-test": "npx ts-node tests/run-vauto-mockup-with-monitoring.ts test",
     "vauto:mockup-manual": "npx ts-node tests/run-vauto-mockup-with-monitoring.ts manual",
     "vauto:mockup-watch": "npx ts-node tests/run-vauto-mockup-with-monitoring.ts both",
+    "vauto:mockup-visual": "npx ts-node watch-automation.ts",
+    "vauto:mockup-super-slow": "npx ts-node super-slow-test.ts",
     "vauto:mockup:start": "node tests/start-vauto-mockup.js",
     "vauto:mockup:test": "ts-node tests/test-vauto-mockup.ts",
     "test:e2e": "playwright test",
