@@ -59,7 +59,7 @@ The VeeOtto system automatically:
 ### Available Tools
 ```bash
 # Check for latest 2FA code
-node get-sms-code.js
+node scripts/dev/get-sms-code.js
 
 # View all recent SMS messages
 node check-twilio-logs.js

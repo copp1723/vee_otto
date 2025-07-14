@@ -60,7 +60,7 @@ async function updateTwilioWebhook() {
     console.log('\nNext steps:');
     console.log('1. Make sure your Render deployment is live and accessible');
     console.log('2. Test VAuto phone verification');
-    console.log('3. Check for SMS codes using: node get-sms-code.js');
+    console.log('3. Check for SMS codes using: node scripts/dev/get-sms-code.js');
     
   } catch (error) {
     console.log('❌ Failed to update webhook:', error.message);

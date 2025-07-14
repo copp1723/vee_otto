@@ -64,7 +64,7 @@ async function verifySMSSystem() {
   console.log('\nHow to test:');
   console.log('1. Go to VAuto and trigger phone verification');
   console.log('2. VAuto will send SMS → Twilio → Your Render webhook');
-  console.log('3. Check for received codes: node get-sms-code.js');
+  console.log('3. Check for received codes: node scripts/dev/get-sms-code.js');
   console.log(`4. Or check directly: curl ${renderUrl}/api/2fa/latest`);
 }
 

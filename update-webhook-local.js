@@ -59,7 +59,7 @@ async function updateTwilioWebhook() {
     console.log('Next steps:');
     console.log('1. Make sure your local server is running on port 10000');
     console.log('2. Test vAuto phone verification');
-    console.log('3. Check for SMS codes using: node get-sms-code.js');
+    console.log('3. Check for SMS codes using: node scripts/dev/get-sms-code.js');
     
   } catch (error) {
     console.error('❌ Error updating webhook:', error.message);

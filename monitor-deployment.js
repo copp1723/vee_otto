@@ -36,7 +36,7 @@ async function monitorDeployment() {
             console.log('🔧 System Status: READY FOR TESTING');
             console.log('\nNext steps:');
             console.log('1. Go to VAuto and trigger phone verification');
-            console.log('2. Check for SMS codes: node get-sms-code.js');
+            console.log('2. Check for SMS codes: node scripts/dev/get-sms-code.js');
             console.log(`3. Or check directly: curl ${renderUrl}/api/2fa/latest`);
             console.log('\nTwilio webhook is configured to send to:');
             console.log(`   ${renderUrl}/webhooks/twilio/sms`);

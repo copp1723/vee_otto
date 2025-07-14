@@ -61,7 +61,7 @@ This document contains all changes made during the setup and troubleshooting ses
 
 ### SMS Management:
 - `node update-webhook-local.js` - Update webhook to local server
-- `node get-sms-code.js` - Retrieve SMS verification codes
+- `node scripts/dev/get-sms-code.js` - Retrieve SMS verification codes
 - `node verify-sms-system.js` - Test SMS system
 
 ### Dashboard:

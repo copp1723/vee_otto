@@ -38,8 +38,10 @@
     "vauto:safe": "./scripts/test-vauto-safely.sh",
     "vauto:auto": "./scripts/run-vauto-automation.sh",
     "vauto:auto:full": "./scripts/run-vauto-automation.sh full",
+    "vauto:modular": "ts-node scripts/run-vauto-modular.ts",
+    "vauto:modular:help": "ts-node scripts/run-vauto-modular.ts --help",
     "experimental:vauto": "EXPERIMENTAL_MODE=true ts-node scripts/run-vauto.ts --once",
-    "test:2fa": "node test-2fa-flow.js",
+    "test:2fa": "node scripts/dev/test-2fa-flow.js",
     "webhook:dev": "cd deployments/webhook-handler && npm run dev",
     "webhook:build": "cd deployments/webhook-handler && npm run build"
   },
