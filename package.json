@@ -10,7 +10,7 @@
     "automation:help": "ts-node scripts/run-automation.ts --help",
     "automation:config": "ts-node scripts/run-automation.ts --create-config",
     "dashboard:dev": "webpack serve --mode development",
-    "dashboard:build": "webpack --mode production",
+    "dashboard:build": "webpack --mode production --progress",
     "dashboard:prod": "node scripts/dashboard-server.js",
     "server:dev": "ts-node src/server.ts",
     "server:build": "tsc && node dist/server.js",
