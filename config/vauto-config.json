@@ -1,0 +1,29 @@
+{
+  "dealerships": [
+    {
+      "id": "dealer1",
+      "name": "Example Dealership",
+      "timezone": "America/New_York",
+      "username": "your-vauto-username",
+      "password": "your-vauto-password",
+      "recipientEmails": ["reports@example.com"],
+      "enabled": true
+    },
+    {
+      "id": "dealer2",
+      "name": "West Coast Motors",
+      "timezone": "America/Los_Angeles",
+      "username": "westcoast-username",
+      "password": "westcoast-password",
+      "recipientEmails": ["manager@westcoast.com", "reports@example.com"],
+      "enabled": false
+    }
+  ],
+  "cronSchedule": "0 7,14 * * *",
+  "mailgunConfig": {
+    "apiKey": "your-mailgun-api-key",
+    "domain": "mg.yourdomain.com",
+    "fromEmail": "automation@yourdomain.com",
+    "fromName": "vAuto Automation"
+  }
+}
