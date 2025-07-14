@@ -136,6 +136,9 @@ npm run build
 # Build frontend dashboard
 echo "🎨 Building frontend dashboard..."
 npm run dashboard:build
+echo "Dashboard build completed, checking output..."
+pwd
+ls -la dist/ 2>/dev/null || echo "No dist directory after dashboard build"
 
 # Verify builds were successful
 echo "📦 Verifying builds..."
@@ -161,11 +164,19 @@ mkdir -p logs screenshots downloads
 
 # Ensure dashboard files are accessible from the correct path
 echo "📂 Verifying dashboard file accessibility..."
+echo "Contents of dist directory:"
+ls -la dist/ 2>/dev/null || echo "dist directory does not exist"
 if [ -d "dist/dashboard" ]; then
     echo "Dashboard files found at dist/dashboard/"
     ls -la dist/dashboard/ | head -5
 else
     echo "⚠️ Dashboard files not found at dist/dashboard/"
+    echo "Checking if dashboard build actually ran..."
+    if [ -f "dist/dashboard/index.html" ]; then
+        echo "index.html exists"
+    else
+        echo "index.html missing"
+    fi
 fi
 
 # Set proper permissions
