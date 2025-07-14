@@ -5,6 +5,7 @@
   "main": "build/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.production.json",
+    "build:all": "npm run build && npm run dashboard:build",
     "start": "node build/server.js",
     "automation": "ts-node scripts/run-automation.ts",
     "automation:help": "ts-node scripts/run-automation.ts --help",

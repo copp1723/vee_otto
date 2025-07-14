@@ -116,13 +116,18 @@ if ! node build/validate-browser.js; then
     echo "This may be due to headless environment restrictions"
 fi
 
-# Build TypeScript
-echo "🔨 Building TypeScript..."
-npm run build
+# Build TypeScript and Dashboard
+echo "🔨 Building TypeScript and Dashboard..."
+npm run build:all
 
-# Build dashboard frontend
-echo "🏗️ Building dashboard frontend..."
-npm run dashboard:build
+# Ensure dashboard files are in the correct location
+echo "📦 Verifying dashboard build..."
+if [ -d "dist/dashboard" ]; then
+    echo "✅ Dashboard built successfully at dist/dashboard"
+    ls -la dist/dashboard/ | head -10
+else
+    echo "⚠️ Dashboard build may have failed - dist/dashboard not found"
+fi
 
 # Create necessary directories
 echo "📁 Creating runtime directories..."
