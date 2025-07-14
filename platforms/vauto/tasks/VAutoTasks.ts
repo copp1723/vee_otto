@@ -524,11 +524,10 @@ export const applyInventoryFiltersTask: TaskDefinition = {
               logger.info('⚠️ No vehicles found with default selector, trying alternatives...');
               
               const alternativeSelectors = [
-                '//div[contains(@class, "x-grid3-scroller")]//tr[contains(@class, "x-grid3-row")]',
-                '//div[contains(@class, "x-grid")]//tbody//tr[position() > 1]',
-                '//tr[@class="x-grid3-row"]',
-                '//tr[contains(@class, "x-grid3-row-first")]',
-                '//tr[contains(@class, "x-grid3-row-last")]'
+                '//div[contains(@class, "x-grid3-scroller")]//tr[contains(@class, "x-grid3-row") and not(contains(@class, "x-grid3-row-checker"))]',
+                '//div[contains(@class, "x-grid")]//tbody//tr[contains(@class, "x-grid3-row") and not(contains(@style, "display: none"))]',
+                '//tr[@class="x-grid3-row" and not(contains(@style, "display: none"))]',
+                '//div[@class="x-grid3-scroller"]//table[@class="x-grid3-row-table"]//tr[contains(@class, "x-grid3-row")]'
               ];
               
               for (const selector of alternativeSelectors) {
@@ -761,11 +760,10 @@ export const processVehicleInventoryTask: TaskDefinition = {
         logger.info('⚠️ No vehicles found with default selector in process-vehicles, trying alternatives...');
         
         const alternativeSelectors = [
-          '//div[contains(@class, "x-grid3-scroller")]//tr[contains(@class, "x-grid3-row")]',
-          '//div[contains(@class, "x-grid")]//tbody//tr[position() > 1]',
-          '//tr[@class="x-grid3-row"]',
-          '//tr[contains(@class, "x-grid3-row-first")]',
-          '//tr[contains(@class, "x-grid3-row-last")]'
+          '//div[contains(@class, "x-grid3-scroller")]//tr[contains(@class, "x-grid3-row") and not(contains(@class, "x-grid3-row-checker"))]',
+          '//div[contains(@class, "x-grid")]//tbody//tr[contains(@class, "x-grid3-row") and not(contains(@style, "display: none"))]',
+          '//tr[@class="x-grid3-row" and not(contains(@style, "display: none"))]',
+          '//div[@class="x-grid3-scroller"]//table[@class="x-grid3-row-table"]//tr[contains(@class, "x-grid3-row")]'
         ];
         
         for (const selector of alternativeSelectors) {
