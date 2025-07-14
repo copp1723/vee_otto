@@ -7,20 +7,33 @@ const fs = require('fs');
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
+  
+  // Ensure we always use the correct project root regardless of where webpack is run from
   const projectRoot = path.resolve(__dirname);
-  const frontendPublicPath = path.join(projectRoot, 'frontend', 'public');
-  const frontendIndexPath = path.join(projectRoot, 'frontend', 'index.tsx');
+  const frontendPath = path.join(projectRoot, 'frontend');
+  const frontendPublicPath = path.join(frontendPath, 'public');
+  const frontendIndexPath = path.join(frontendPath, 'index.tsx');
 
   // Check if required files exist
   const frontendPublicExists = fs.existsSync(frontendPublicPath);
   const frontendIndexExists = fs.existsSync(frontendIndexPath);
 
   console.log('🔧 Webpack Configuration:');
+  console.log(`  Working Directory: ${process.cwd()}`);
+  console.log(`  Config File Location: ${__dirname}`);
   console.log(`  Project Root: ${projectRoot}`);
+  console.log(`  Frontend Path: ${frontendPath}`);
   console.log(`  Frontend Public Path: ${frontendPublicPath} (exists: ${frontendPublicExists})`);
   console.log(`  Frontend Index Path: ${frontendIndexPath} (exists: ${frontendIndexExists})`);
 
   if (!frontendIndexExists) {
+    console.error(`❌ Frontend entry point not found: ${frontendIndexPath}`);
+    console.error(`Available files in frontend directory:`);
+    if (fs.existsSync(frontendPath)) {
+      console.error(fs.readdirSync(frontendPath));
+    } else {
+      console.error(`Frontend directory doesn't exist: ${frontendPath}`);
+    }
     throw new Error(`Frontend entry point not found: ${frontendIndexPath}`);
   }
 
@@ -34,39 +47,57 @@ module.exports = (env, argv) => {
   ];
 
   // Add HtmlWebpackPlugin with fallback template
-  if (frontendPublicExists && fs.existsSync(path.join(frontendPublicPath, 'index.html'))) {
+  const htmlTemplatePath = path.join(frontendPublicPath, 'index.html');
+  if (frontendPublicExists && fs.existsSync(htmlTemplatePath)) {
+    console.log(`📄 Using HTML template: ${htmlTemplatePath}`);
     plugins.push(new HtmlWebpackPlugin({
-      template: path.join(frontendPublicPath, 'index.html'),
+      template: htmlTemplatePath,
       title: 'vAuto Intelligence Suite',
     }));
   } else {
     // Create a minimal HTML template if the public directory doesn't exist
-    console.log('⚠️ Creating fallback HTML template');
+    console.log('⚠️ Creating fallback HTML template (frontend/public/index.html not found)');
     plugins.push(new HtmlWebpackPlugin({
-      template: 'data:text/html,<!DOCTYPE html><html><head><title>vAuto Intelligence Suite</title></head><body><div id="root"></div></body></html>',
+      templateContent: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>vAuto Intelligence Suite</title>
+        </head>
+        <body>
+          <div id="root"></div>
+        </body>
+        </html>
+      `,
       title: 'vAuto Intelligence Suite',
     }));
   }
 
   // Add CopyWebpackPlugin only if the public directory exists and has files to copy
   if (frontendPublicExists) {
-    const publicFiles = fs.readdirSync(frontendPublicPath).filter(file => file !== 'index.html');
-    if (publicFiles.length > 0) {
-      console.log(`📁 Copying ${publicFiles.length} files from frontend/public`);
-      plugins.push(new CopyWebpackPlugin({
-        patterns: [
-          { 
-            from: frontendPublicPath,
-            to: '.', 
-            globOptions: {
-              ignore: ['**/index.html']
-            },
-            noErrorOnMissing: true
-          }
-        ]
-      }));
-    } else {
-      console.log('📁 No files to copy from frontend/public (only index.html exists)');
+    try {
+      const publicFiles = fs.readdirSync(frontendPublicPath).filter(file => file !== 'index.html');
+      if (publicFiles.length > 0) {
+        console.log(`📁 Copying ${publicFiles.length} files from frontend/public:`, publicFiles);
+        plugins.push(new CopyWebpackPlugin({
+          patterns: [
+            { 
+              from: frontendPublicPath,
+              to: '.', 
+              globOptions: {
+                ignore: ['**/index.html']
+              },
+              noErrorOnMissing: true
+            }
+          ]
+        }));
+      } else {
+        console.log('📁 No files to copy from frontend/public (only index.html exists)');
+      }
+    } catch (error) {
+      console.warn('⚠️ Error reading frontend/public directory:', error.message);
     }
   } else {
     console.log('⚠️ frontend/public directory not found, skipping file copy');
@@ -80,18 +111,18 @@ module.exports = (env, argv) => {
   }
 
   return {
-    entry: './frontend/index.tsx',
+    entry: path.resolve(frontendIndexPath),
     output: {
-      path: path.resolve(__dirname, 'dist/dashboard'),
+      path: path.resolve(projectRoot, 'dist/dashboard'),
       filename: isProduction ? '[name].[contenthash].js' : '[name].js',
       clean: true,
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.js'],
       alias: {
-        '@': path.resolve(__dirname, 'frontend'),
-        '@core': path.resolve(__dirname, 'core'),
-        '@platforms': path.resolve(__dirname, 'platforms')
+        '@': path.resolve(projectRoot, 'frontend'),
+        '@core': path.resolve(projectRoot, 'core'),
+        '@platforms': path.resolve(projectRoot, 'platforms')
       },
     },
     module: {
@@ -141,7 +172,7 @@ module.exports = (env, argv) => {
     devServer: {
       static: [
         {
-          directory: path.join(__dirname, 'dist/dashboard'),
+          directory: path.resolve(projectRoot, 'dist/dashboard'),
         },
         ...(frontendPublicExists ? [{
           directory: frontendPublicPath,
