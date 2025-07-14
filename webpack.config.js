@@ -17,6 +17,8 @@ module.exports = (env, argv) => {
       extensions: ['.tsx', '.ts', '.js'],
       alias: {
         '@': path.resolve(__dirname, 'frontend'),
+        '@core': path.resolve(__dirname, 'core'),
+        '@platforms': path.resolve(__dirname, 'platforms')
       },
     },
     module: {
@@ -91,24 +93,17 @@ module.exports = (env, argv) => {
         chunks: 'all',
         cacheGroups: {
           vendor: {
-            test: /[\\/]node_modules[\\/]/,
+            test: /[\/\\]node_modules[\/\\]/,
             name: 'vendors',
             chunks: 'all',
-            priority: 10,
           },
-          charts: {
-            test: /[\\/]node_modules[\\/](recharts|d3-)[\\/]/,
-            name: 'charts',
+          common: {
+            name: 'common',
+            minChunks: 2,
             chunks: 'all',
-            priority: 20,
-          },
-          react: {
-            test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
-            name: 'react',
-            chunks: 'all',
-            priority: 15,
-          },
-        },
+            enforce: true
+          }
+        }
       },
       usedExports: true,
       sideEffects: false,

@@ -357,19 +357,19 @@ const Dashboard: React.FC = () => {
           />
         </div>
       ) : activeTab === 'process-explorer' ? (
-        <div className="process-explorer-tab">
+        <div className="process-explorer-tab h-[calc(100vh-120px)]">
           <iframe
             src="/process-explorer.html"
             title="Interactive Process Explorer"
-            className="w-full h-[800px] border"
+            className="w-full h-full border-0"
           />
         </div>
       ) : (
-        <div className="enhanced-mockup-tab">
+        <div className="enhanced-mockup-tab h-[calc(100vh-120px)]">
           <iframe
             src="/enhanced-vauto-mockup.html"
             title="Enhanced vAuto Mockup"
-            className="w-full h-[800px] border"
+            className="w-full h-full border-0"
           />
         </div>
       )}

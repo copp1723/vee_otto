@@ -1,56 +1,7 @@
 {
-  "stagehand": {
-    "enabled": true,
-    "fallbackEnabled": true,
-    "config": {
-      "model": "openai/gpt-4o",
-      "headless": false,
-      "env": "LOCAL",
-      "cacheEnabled": true,
-      "timeout": 30000,
-      "enableCaching": true,
-      "verbose": true
-    },
-    "adapter": {
-      "fallbackTimeout": 10000,
-      "stagehandTimeout": 30000,
-      "enableMetrics": true,
-      "debugMode": true
-    },
-    "testing": {
-      "sidecarMode": true,
-      "collectMetrics": true,
-      "compareWithExisting": true,
-      "screenshotOnFailure": true,
-      "maxRetries": 2
-    }
-  },
-  "experimental": {
-    "features": {
-      "stagehandPrimary": true,
-      "hybridFallback": true,
-      "metricsCollection": true,
-      "performanceComparison": true,
-      "debugMode": true
-    },
-    "limits": {
-      "maxActionsPerSession": 100,
-      "maxRetryAttempts": 3,
-      "timeoutMs": 60000
-    },
-    "safety": {
-      "enableFallbacks": true,
-      "requireConfirmation": false,
-      "logAllActions": true,
-      "captureScreenshots": true
-    }
-  },
   "logging": {
     "level": "debug",
-    "logStagehandActions": true,
-    "logFallbackActions": true,
-    "logPerformanceMetrics": true,
-    "outputDir": "logs/experimental"
+    "filePath": "./logs/experimental.log"
   },
   "metrics": {
     "enabled": true,

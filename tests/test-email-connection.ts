@@ -1,68 +1,73 @@
-import { EmailService } from './src/services/EmailService';
+import { EmailFactory } from '../integrations/email/EmailFactory';
 import fs from 'fs-extra';
+import { Logger } from '../core/utils/Logger';
+
+const logger = new Logger('EmailConnectionTest');
 
 async function testEmailConnection() {
-  console.log('🧪 Testing Email Connection');
-  console.log('===========================');
+  logger.info('🧪 Testing Email Connection');
+  logger.info('===========================');
 
   try {
     // Load email configuration
     const emailConfig = await fs.readJson('./email-config.json');
-    console.log(`📧 Agent Email: ${emailConfig.agentEmail}`);
-    console.log(`📤 SMTP: ${emailConfig.smtp.host}:${emailConfig.smtp.port}`);
-    console.log(`📥 IMAP: ${emailConfig.imap.host}:${emailConfig.imap.port}`);
-    console.log('');
+    logger.info(`📧 Agent Email: ${emailConfig.agentEmail}`);
+    // Note: Assuming emailConfig has provider, smtp or mailgun
+    logger.info(`Provider: ${emailConfig.provider}`);
+    logger.info('');
 
-    // Initialize email service
-    const emailService = new EmailService(emailConfig);
+    // Initialize email provider using factory
+    const emailProvider = EmailFactory.create(emailConfig);
     
-    console.log('🔧 Initializing email service...');
-    await emailService.initialize();
-    console.log('✅ Email service initialized successfully!');
-    console.log('');
+    logger.info('🔧 Initializing email service...');
+    await emailProvider.initialize();
+    logger.info('✅ Email service initialized successfully!');
+    logger.info('');
 
     // Test sending a notification email
-    console.log('📤 Sending test notification email...');
-    await emailService.sendNotificationEmail(
+    logger.info('📤 Sending test notification email...');
+    await emailProvider.sendNotificationEmail(
       'Email Service Test',
-      'This is a test email from your Automation Agent. If you receive this, the email configuration is working correctly!'
+      'This is a test email from your Automation Agent. If you receive this, the email configuration is working correctly!',
+      // Assuming from is in config, but send to self for test
+      [emailConfig.agentEmail]
     );
-    console.log('✅ Test email sent successfully!');
-    console.log('');
+    logger.info('✅ Test email sent successfully!');
+    logger.info('');
 
     // Test IMAP connection for reading emails
-    console.log('📥 Testing IMAP connection for reading emails...');
-    console.log('   (This will timeout after 10 seconds - that\'s normal for testing)');
+    logger.info('📥 Testing IMAP connection for reading emails...');
+    logger.info('   (This will timeout after 10 seconds - that\'s normal for testing)');
     
     try {
       // Try to wait for a 2FA code for 10 seconds (will timeout, but tests IMAP)
-      await emailService.waitForTwoFactorCode(10000, 'test.com');
+      await emailProvider.waitForTwoFactorCode(10000, 'test.com');
     } catch (timeoutError: any) {
       if (timeoutError.message && timeoutError.message.includes('Timeout')) {
-        console.log('✅ IMAP connection working (timeout expected for test)');
+        logger.info('✅ IMAP connection working (timeout expected for test)');
       } else {
         throw timeoutError;
       }
     }
 
-    await emailService.close();
-    console.log('');
-    console.log('🎉 All email tests passed!');
-    console.log('');
-    console.log('Next steps:');
-    console.log('1. Check your email inbox for the test message');
-    console.log('2. Configure your platform to send 2FA codes to rylie1234@gmail.com');
-    console.log('3. Run: npm run test-email');
+    await emailProvider.close();
+    logger.info('');
+    logger.info('🎉 All email tests passed!');
+    logger.info('');
+    logger.info('Next steps:');
+    logger.info('1. Check your email inbox for the test message');
+    logger.info('2. Configure your platform to send 2FA codes to rylie1234@gmail.com');
+    logger.info('3. Run: npm run test-email');
 
   } catch (error: any) {
-    console.log(`❌ Email test failed: ${error.message || error}`);
-    console.log('');
-    console.log('Troubleshooting:');
-    console.log('1. Verify the Gmail App Password is correct');
-    console.log('2. Ensure 2FA is enabled on the Gmail account');
-    console.log('3. Check that IMAP is enabled in Gmail settings');
+    logger.error(`❌ Email test failed: ${error.message || error}`);
+    logger.info('');
+    logger.info('Troubleshooting:');
+    logger.info('1. Verify the Gmail App Password is correct');
+    logger.info('2. Ensure 2FA is enabled on the Gmail account');
+    logger.info('3. Check that IMAP is enabled in Gmail settings');
   }
 }
 
-testEmailConnection().catch(console.error);
+testEmailConnection().catch(error => logger.error('Unhandled error:', error));
 

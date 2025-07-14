@@ -40,7 +40,7 @@ async function runSingleExecution() {
     
     // Print report to console
     const report = await agent.generateReport();
-    console.log(report);
+    logger.info(report);
     
     // Send email report if configured
     if (process.env.REPORT_EMAILS) {
@@ -105,7 +105,7 @@ async function main() {
     // Run single execution
     await runSingleExecution();
   } else if (mode === '--help' || mode === '-h') {
-    console.log(`
+    logger.info(`
 vAuto Automation Tool
 
 Usage:

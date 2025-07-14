@@ -31,104 +31,104 @@
         .tab-content.active { display: block; }
     </style>
 </head>
-<body class="bg-gray-100 p-4 sm:p-8 text-gray-800">
+<body class="bg-gray-100 p-2 sm:p-4 text-gray-800 h-screen overflow-hidden">
 
-<header class="bg-[#004b8d] text-white p-4 text-center text-2xl font-bold mb-8 rounded-lg shadow-md">
+<header class="bg-[#004b8d] text-white p-2 text-center text-xl font-bold mb-2 rounded-lg shadow-md">
     vAuto Mock Interface
 </header>
 
-<div id="app-container" class="max-w-7xl mx-auto">
+<div id="app-container" class="max-w-7xl mx-auto h-full flex flex-col">
 
     <!-- Page 1: Username Screen -->
-    <div id="username-page" class="page active bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Login - Username</h2>
-        <input type="text" id="username" placeholder="Enter Username" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-        <button onclick="goToPassword()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
+    <div id="username-page" class="page active bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3 border-b pb-2">Login - Username</h2>
+        <input type="text" id="username" placeholder="Enter Username" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <button onclick="goToPassword()" class="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
     </div>
 
     <!-- Page 2: Password Screen -->
-    <div id="password-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Login - Password</h2>
-        <input type="password" id="password" placeholder="Enter Password" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-        <button onclick="goToSelector()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
+    <div id="password-page" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3 border-b pb-2">Login - Password</h2>
+        <input type="password" id="password" placeholder="Enter Password" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <button onclick="goToSelector()" class="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md">Enter</button>
     </div>
 
     <!-- Page 3: Selector (Dealership) -->
-    <div id="selector-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-6 border-b pb-4">Select Dealership</h2>
-        <select id="dealership" class="w-full p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+    <div id="selector-page" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3 border-b pb-2">Select Dealership</h2>
+        <select id="dealership" class="w-full p-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
             <option>Cox Automotive - Main</option>
             <option>vAuto Test Dealership</option>
             <option>Manheim Orlando</option>
         </select>
-        <button onclick="goToHomepage()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Select</button>
+        <button onclick="goToHomepage()" class="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md">Select</button>
     </div>
 
     <!-- Page 4: Homepage -->
-    <div id="homepage" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-6">Homepage Dashboard</h2>
+    <div id="homepage" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3">Homepage Dashboard</h2>
         <div class="relative inline-block text-left group">
-            <button class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md inline-flex items-center transition">
+            <button class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-md inline-flex items-center transition text-sm">
                 <span>Pricing</span>
-                <svg class="fill-current h-4 w-4 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <svg class="fill-current h-3 w-3 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
             </button>
             <div class="absolute hidden group-hover:block bg-white text-gray-800 pt-1 rounded-md shadow-lg z-10">
-                <a href="#" onclick="goToInventory()" class="block px-4 py-2 whitespace-nowrap hover:bg-blue-500 hover:text-white">View Inventory</a>
-                <a href="#" class="block px-4 py-2 whitespace-nowrap hover:bg-blue-500 hover:text-white">Market Analysis</a>
+                <a href="#" onclick="goToInventory()" class="block px-3 py-1 text-sm whitespace-nowrap hover:bg-blue-500 hover:text-white">View Inventory</a>
+                <a href="#" class="block px-3 py-1 text-sm whitespace-nowrap hover:bg-blue-500 hover:text-white">Market Analysis</a>
             </div>
         </div>
-        <p class="mt-6 text-gray-600">Welcome to vAuto Live Market View. Hover over menus to navigate.</p>
+        <p class="mt-3 text-gray-600 text-sm">Welcome to vAuto Live Market View. Hover over menus to navigate.</p>
     </div>
 
     <!-- Page 5-7: Inventory View -->
-    <div id="inventory-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-6">Inventory Management</h2>
-        <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
-            <label for="days-filter" class="font-semibold">Filter by Days in Stock:</label>
-            <select id="days-filter" class="flex-grow p-3 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+    <div id="inventory-page" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3">Inventory Management</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 p-2 bg-gray-50 rounded-lg border">
+            <label for="days-filter" class="font-semibold text-sm">Filter by Days in Stock:</label>
+            <select id="days-filter" class="flex-grow p-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm">
                 <option>0-1 day (new inventory)</option>
                 <option>2-7 days</option>
             </select>
-            <button onclick="applyFilter()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Apply Filter</button>
+            <button onclick="applyFilter()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md text-sm">Apply Filter</button>
         </div>
-        <ul id="inventory-list" class="space-y-3">
+        <ul id="inventory-list" class="space-y-2 overflow-y-auto flex-1">
             <!-- Inventory items will be populated by JS -->
         </ul>
     </div>
 
     <!-- Page 10-11: Window Sticker Popup -->
-    <div id="window-sticker-popup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-        <div id="window-sticker-content" class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div id="window-sticker-popup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-2">
+        <div id="window-sticker-content" class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[95vh] flex flex-col">
             <!-- Sticker content will be populated by JS -->
         </div>
     </div>
 
     <!-- Page 12-13: Description Checkboxes -->
-    <div id="description-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-2">Vehicle Description & Options</h2>
-        <p class="text-gray-600 mb-6">Update checkboxes based on the window sticker. Scroll for more options.</p>
-        <div id="description-checkboxes" class="h-64 overflow-y-auto border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+    <div id="description-page" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-2">Vehicle Description & Options</h2>
+        <p class="text-gray-600 mb-3 text-sm">Update checkboxes based on the window sticker.</p>
+        <div id="description-checkboxes" class="flex-1 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
             <!-- Checkboxes will be populated by JS -->
         </div>
-        <button onclick="saveDescriptionAndGoToBooks()" class="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Save & Sync Book Values</button>
+        <button onclick="saveDescriptionAndGoToBooks()" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md text-sm">Save & Sync Book Values</button>
     </div>
     
     <!-- NEW: Book Value Sync Page -->
-    <div id="book-value-page" class="page hidden bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <h2 class="text-xl sm:text-2xl font-semibold mb-4">Book Value Synchronization</h2>
-        <p class="text-gray-600 mb-6">Apply features to sync values across providers. Discrepancies will be highlighted.</p>
+    <div id="book-value-page" class="page hidden bg-white p-3 rounded-lg shadow-lg flex-1 flex flex-col">
+        <h2 class="text-lg font-semibold mb-3">Book Value Synchronization</h2>
+        <p class="text-gray-600 mb-3 text-sm">Apply features to sync values across providers.</p>
         
         <!-- Tabs -->
         <div class="border-b border-gray-200">
-            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-                <button onclick="switchTab(event, 'jdpower')" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">J.D. Power</button>
-                <button onclick="switchTab(event, 'kbb')" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">KBB</button>
-                <button onclick="switchTab(event, 'blackbook')" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Black Book</button>
+            <nav class="-mb-px flex space-x-3" aria-label="Tabs">
+                <button onclick="switchTab(event, 'jdpower')" class="tab-button active whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">J.D. Power</button>
+                <button onclick="switchTab(event, 'kbb')" class="tab-button whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">KBB</button>
+                <button onclick="switchTab(event, 'blackbook')" class="tab-button whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Black Book</button>
             </nav>
         </div>
 
         <!-- Tab Content -->
-        <div id="book-value-tabs-content" class="mt-6">
+        <div id="book-value-tabs-content" class="mt-3 flex-1 overflow-y-auto">
             <!-- J.D. Power -->
             <div id="jdpower" class="tab-content active"></div>
             <!-- KBB -->
@@ -137,24 +137,24 @@
             <div id="blackbook" class="tab-content"></div>
         </div>
         
-        <div class="mt-8 pt-6 border-t">
-            <h3 class="text-lg font-semibold">Sync Summary</h3>
-            <div id="sync-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-center">
+        <div class="mt-4 pt-3 border-t">
+            <h3 class="text-base font-semibold">Sync Summary</h3>
+            <div id="sync-summary" class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 text-center">
                 <!-- Summary populated by JS -->
             </div>
         </div>
 
-        <button onclick="confirmBookValues()" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 shadow-sm hover:shadow-md">Confirm Values & Generate Report</button>
+        <button onclick="confirmBookValues()" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition duration-300 shadow-sm hover:shadow-md text-sm">Confirm Values & Generate Report</button>
     </div>
 
 
     <!-- Page 14: Report -->
-    <div id="report-page" class="page hidden">
-        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-6 rounded-lg shadow-md" role="alert">
-            <h2 class="font-bold text-xl mb-2">Report Generated Successfully</h2>
-            <p>VIN: <span id="report-vin"></span>, Features Updated: <span id="report-features"></span>, Errors: 0</p>
-            <p class="mt-2">Adjustments have been saved and synced. An email notification has been simulated.</p>
-            <button onclick="resetMockup()" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition">Back to Login</button>
+    <div id="report-page" class="page hidden flex-1 flex flex-col">
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 rounded-lg shadow-md" role="alert">
+            <h2 class="font-bold text-base mb-2">Report Generated Successfully</h2>
+            <p class="text-sm">VIN: <span id="report-vin"></span>, Features Updated: <span id="report-features"></span>, Errors: 0</p>
+            <p class="mt-1 text-sm">Adjustments have been saved and synced. An email notification has been simulated.</p>
+            <button onclick="resetMockup()" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-md transition text-sm">Back to Login</button>
         </div>
     </div>
 </div>

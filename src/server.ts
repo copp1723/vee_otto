@@ -72,7 +72,11 @@ app.use(express.static(dashboardPath));
 app.use('/test-mockup', express.static(path.join(projectRoot, 'tests/fixtures/vauto-mockup')));
 
 // JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  logger.error('JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 
 // Authentication middleware
 const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {

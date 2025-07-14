@@ -207,6 +207,18 @@ export class ConfigManager {
   private validateConfig(config: any, configName: string): void {
     const errors: string[] = [];
 
+    // Validate required environment variables
+    if (!process.env.JWT_SECRET) {
+      errors.push('JWT_SECRET is required');
+    }
+    if (!process.env.VAUTO_USERNAME) {
+      errors.push('VAUTO_USERNAME is required');
+    }
+    if (!process.env.VAUTO_PASSWORD) {
+      errors.push('VAUTO_PASSWORD is required');
+    }
+    // Add more as needed
+
     // Validate email configuration
     if (config.email) {
       if (!config.email.provider) {

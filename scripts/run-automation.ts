@@ -98,9 +98,9 @@ async function main() {
       logger.info('📊 Processing data...');
       const report = await agent.generateReport();
       
-      console.log('\n' + '='.repeat(50));
-      console.log(report);
-      console.log('='.repeat(50) + '\n');
+      logger.info('\n' + '='.repeat(50));
+      logger.info(report);
+      logger.info('='.repeat(50) + '\n');
       
       logger.info('✨ Automation completed successfully!');
     });
@@ -113,7 +113,7 @@ async function main() {
 
 // Show usage information
 function showUsage() {
-  console.log(`
+  logger.info(`
 Vee Otto Automation Runner
 
 Usage:
@@ -143,10 +143,10 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
 if (process.argv.includes('--create-config')) {
   const configManager = ConfigManager.getInstance();
   configManager.createExampleConfigs().then(() => {
-    console.log('✅ Example configuration files created in ./config/examples/');
+    logger.info('✅ Example configuration files created in ./config/examples/');
     process.exit(0);
   }).catch(error => {
-    console.error('❌ Failed to create example configs:', error);
+    logger.error('❌ Failed to create example configs:', error);
     process.exit(1);
   });
 } else {

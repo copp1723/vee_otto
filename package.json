@@ -34,16 +34,11 @@
     "vauto:once": "ts-node scripts/run-vauto.ts --once",
     "vauto:test": "TEST_MODE=true ts-node scripts/run-vauto.ts --once",
     "vauto:safe": "./scripts/test-vauto-safely.sh",
-    "stagehand:install": "npm install @browserbase/stagehand",
-    "stagehand:test": "ts-node scripts/run-stagehand-experiment.ts",
-    "stagehand:compare": "ts-node scripts/compare-approaches.ts",
-    "stagehand:metrics": "ts-node scripts/generate-stagehand-metrics.ts",
     "experimental:vauto": "EXPERIMENTAL_MODE=true ts-node scripts/run-vauto.ts --once",
     "webhook:dev": "cd deployments/webhook-handler && npm run dev",
     "webhook:build": "cd deployments/webhook-handler && npm run build"
   },
   "dependencies": {
-    "@browserbasehq/stagehand": "^2.4.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/fs-extra": "^11.0.4",

@@ -1,21 +1,24 @@
-import { OpenRouterService } from './src/services/OpenRouterService';
+import { OpenRouterService } from '../integrations/OpenRouterService';
 import dotenv from 'dotenv';
+import { Logger } from '../core/utils/Logger';
 
 // Load environment variables
 dotenv.config();
 
+const logger = new Logger('OpenRouterTest');
+
 async function testOpenRouter() {
-  console.log('🧪 Testing OpenRouter Connection');
-  console.log('=================================');
+  logger.info('🧪 Testing OpenRouter Connection');
+  logger.info('=================================');
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    console.log('❌ OPENROUTER_API_KEY not found in environment variables');
+    logger.warn('❌ OPENROUTER_API_KEY not found in environment variables');
     return;
   }
 
-  console.log(`🔑 API Key: ${apiKey.substring(0, 20)}...`);
-  console.log('');
+  logger.info(`🔑 API Key: ${apiKey.substring(0, 20)}...`);
+  logger.info('');
 
   try {
     const openRouterService = new OpenRouterService({
@@ -24,37 +27,37 @@ async function testOpenRouter() {
       defaultModel: process.env.OPENROUTER_DEFAULT_MODEL
     });
 
-    console.log('🔧 Testing connection...');
+    logger.info('🔧 Testing connection...');
     const isConnected = await openRouterService.testConnection();
     
     if (isConnected) {
-      console.log('✅ OpenRouter connection successful!');
-      console.log('');
+      logger.info('✅ OpenRouter connection successful!');
+      logger.info('');
 
       // Test model selection
-      console.log('🤖 Testing model selection...');
+      logger.info('🤖 Testing model selection...');
       const visionModel = await openRouterService.selectBestModel('analyze screenshot for vision');
       const codeModel = await openRouterService.selectBestModel('generate code for automation');
       const fastModel = await openRouterService.selectBestModel('quick response needed');
       
-      console.log(`   Vision tasks: ${visionModel}`);
-      console.log(`   Code tasks: ${codeModel}`);
-      console.log(`   Fast tasks: ${fastModel}`);
-      console.log('');
+      logger.info(`   Vision tasks: ${visionModel}`);
+      logger.info(`   Code tasks: ${codeModel}`);
+      logger.info(`   Fast tasks: ${fastModel}`);
+      logger.info('');
 
       // Test automation strategy generation
-      console.log('🎯 Testing automation strategy generation...');
+      logger.info('🎯 Testing automation strategy generation...');
       const strategy = await openRouterService.generateAutomationStrategy(
         'ExamplePlatform',
         'Lead Source ROI',
         'Login with 2FA',
         'Email 2FA code not received'
       );
-      console.log(`   Strategy: ${strategy}`);
-      console.log('');
+      logger.info(`   Strategy: ${strategy}`);
+      logger.info('');
 
       // Test 2FA code extraction
-      console.log('🔐 Testing 2FA code extraction...');
+      logger.info('🔐 Testing 2FA code extraction...');
       const sampleEmail = `
         Subject: Security Code
         
@@ -66,33 +69,33 @@ async function testOpenRouter() {
       `;
       
       const codeAnalysis = await openRouterService.extractTwoFactorCode(sampleEmail);
-      console.log(`   Code found: ${codeAnalysis.codeFound}`);
-      console.log(`   Code: ${codeAnalysis.code}`);
-      console.log(`   Confidence: ${codeAnalysis.confidence}`);
-      console.log(`   Reasoning: ${codeAnalysis.reasoning}`);
-      console.log('');
+      logger.info(`   Code found: ${codeAnalysis.codeFound}`);
+      logger.info(`   Code: ${codeAnalysis.code}`);
+      logger.info(`   Confidence: ${codeAnalysis.confidence}`);
+      logger.info(`   Reasoning: ${codeAnalysis.reasoning}`);
+      logger.info('');
 
-      console.log('🎉 All OpenRouter tests passed!');
-      console.log('');
-      console.log('Available capabilities:');
-      console.log('✅ Vision analysis for page screenshots');
-      console.log('✅ Intelligent 2FA code extraction');
-      console.log('✅ Automation strategy generation');
-      console.log('✅ Dynamic model selection');
+      logger.info('🎉 All OpenRouter tests passed!');
+      logger.info('');
+      logger.info('Available capabilities:');
+      logger.info('✅ Vision analysis for page screenshots');
+      logger.info('✅ Intelligent 2FA code extraction');
+      logger.info('✅ Automation strategy generation');
+      logger.info('✅ Dynamic model selection');
 
     } else {
-      console.log('❌ OpenRouter connection failed');
+      logger.error('❌ OpenRouter connection failed');
     }
 
   } catch (error: any) {
-    console.log(`💥 OpenRouter test failed: ${error.message}`);
-    console.log('');
-    console.log('Troubleshooting:');
-    console.log('1. Verify the OpenRouter API key is correct');
-    console.log('2. Check your OpenRouter account has credits');
-    console.log('3. Ensure network connectivity to openrouter.ai');
+    logger.error(`💥 OpenRouter test failed: ${error.message}`);
+    logger.info('');
+    logger.info('Troubleshooting:');
+    logger.info('1. Verify the OpenRouter API key is correct');
+    logger.info('2. Check your OpenRouter account has credits');
+    logger.info('3. Ensure network connectivity to openrouter.ai');
   }
 }
 
-testOpenRouter().catch(console.error);
+testOpenRouter().catch(error => logger.error('Unhandled error:', error));
 
