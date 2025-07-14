@@ -225,16 +225,23 @@ app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
   return res.status(200).send('<Response></Response>');
 });
 
-// Endpoint for agent to fetch latest 2FA code
+// Endpoint for agent to fetch latest 2FA code (consumes code immediately)
 app.get('/api/2fa/latest', (req: Request, res: Response) => {
   if (storedCodes.length > 0) {
     const latest = storedCodes[storedCodes.length - 1];
     if (new Date().getTime() - new Date(latest.timestamp).getTime() < CODE_EXPIRATION_MS) {
+      // CRITICAL: Remove the code immediately after fetching to prevent reuse
+      storedCodes.pop(); // Remove the latest code
+      logger.info(`2FA code consumed: ${latest.code} (timestamp: ${latest.timestamp})`);
+      
       res.json({
         code: latest.code,
         timestamp: latest.timestamp
       });
     } else {
+      // Remove expired code
+      storedCodes.pop();
+      logger.info(`Expired 2FA code discarded: ${latest.code} (timestamp: ${latest.timestamp})`);
       res.status(404).json({ error: 'Latest code expired' });
     }
   } else {

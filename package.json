@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.production.json",
     "build:all": "npm run build && npm run dashboard:build",
-    "start": "node build/server.js",
+    "start": "node build/src/server.js",
     "automation": "ts-node scripts/run-automation.ts",
     "automation:help": "ts-node scripts/run-automation.ts --help",
     "automation:config": "ts-node scripts/run-automation.ts --create-config",
@@ -17,7 +17,7 @@
     "server:build": "tsc && node build/server.js",
     "visual": "ts-node src/visualBrowserRunner.ts",
     "render:build": "bash scripts/render-build.sh",
-    "render:start": "node build/server.js",
+    "render:start": "node build/src/server.js",
     "test:email": "ts-node tests/test-email-connection.ts",
     "test:mailgun": "ts-node tests/test-mailgun.ts",
     "test:reliability": "ts-node tests/test-hybrid-reliability.ts",

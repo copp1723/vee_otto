@@ -139,10 +139,10 @@ npm run dashboard:build
 
 # Verify builds were successful
 echo "📦 Verifying builds..."
-if [ -f "build/server.js" ]; then
+if [ -f "build/src/server.js" ]; then
     echo "✅ Backend built successfully"
 else
-    echo "❌ Backend build failed - build/server.js not found"
+    echo "❌ Backend build failed - build/src/server.js not found"
     exit 1
 fi
 
