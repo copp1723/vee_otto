@@ -11,15 +11,30 @@ echo "🚀 Building Vee Otto for Render deployment..."
 echo "📦 Installing dependencies..."
 npm ci
 
-# Verify Playwright installation
-echo "🔍 Verifying Playwright installation..."
-if ! npm list playwright > /dev/null 2>&1; then
-    echo "❌ Playwright not found in dependencies, installing..."
-    npm install playwright
-fi
+# Debug: Check npm installation
+echo "🔍 Debug: Checking npm packages..."
+npm list playwright || echo "Failed to list playwright"
+
+# Debug: Check node_modules structure
+echo "🔍 Debug: Checking node_modules..."
+ls -la node_modules/.bin/ | grep -i playwright || echo "No playwright in .bin"
+ls -la node_modules/playwright/ || echo "No playwright directory"
+
+# Debug: Try to find playwright executable
+echo "🔍 Debug: Looking for playwright executable..."
+which playwright || echo "playwright not in PATH"
+find node_modules -name "playwright" -type f -executable 2>/dev/null || echo "No executable playwright found"
+
+# Debug: Check npx availability
+echo "🔍 Debug: Testing npx..."
+npx --version || echo "npx not available"
+
+# Try direct node execution of playwright
+echo "🔍 Debug: Trying direct node execution..."
+node node_modules/playwright/cli.js --version || echo "Direct execution failed"
 
 # Install Playwright browsers for Render environment with enhanced caching
-echo "🎭 Installing Playwright browsers..."
+echo "🎭 Preparing Playwright browser installation..."
 echo "Setting up Playwright cache directory..."
 export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
 mkdir -p $PLAYWRIGHT_BROWSERS_PATH
@@ -27,11 +42,21 @@ mkdir -p $PLAYWRIGHT_BROWSERS_PATH
 # Ensure dist directory exists before creating validation script
 mkdir -p dist
 
-# Install browsers with system dependencies
+# Try alternative installation approach
 echo "Installing Chromium with system dependencies..."
-if ! npx playwright install chromium --with-deps; then
-    echo "⚠️ Initial browser installation failed, retrying with force..."
-    npx playwright install chromium --force --with-deps
+if [ -f "node_modules/playwright/cli.js" ]; then
+    echo "Using direct node execution for playwright..."
+    node node_modules/playwright/cli.js install chromium --with-deps || {
+        echo "⚠️ Initial browser installation failed, retrying with force..."
+        node node_modules/playwright/cli.js install chromium --force --with-deps
+    }
+else
+    echo "❌ Playwright CLI not found at expected location"
+    echo "Attempting npx fallback..."
+    if ! npx playwright install chromium --with-deps; then
+        echo "⚠️ Initial browser installation failed, retrying with force..."
+        npx playwright install chromium --force --with-deps
+    fi
 fi
 
 # Verify browser installation
