@@ -272,18 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             Test Mockup
           </button>
         )}
-        <button
-          className={`px-4 py-2 ${activeTab === 'process-explorer' ? 'border-b-2 border-blue-500' : ''}`}
-          onClick={() => setActiveTab('process-explorer')}
-        >
-          Process Explorer
-        </button>
-        <button
-          className={`px-4 py-2 ${activeTab === 'enhanced-mockup' ? 'border-b-2 border-blue-500' : ''}`}
-          onClick={() => setActiveTab('enhanced-mockup')}
-        >
-          Enhanced Mockup
-        </button>
+
       </div>
       {activeTab === 'dashboard' ? (
         <div className={styles.dashboard}>
@@ -465,15 +454,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             className="w-full h-full border-0"
           />
         </div>
-      ) : activeTab === 'process-explorer' ? (
-        <div className="process-explorer-tab h-[calc(100vh-120px)] flex items-center justify-center">
-          <p>Process Explorer opens in a new window. If not opened, click <button onClick={() => window.open('/process-explorer.html', 'ProcessExplorer', 'width=1200,height=800')}>Open Process Explorer</button></p>
-        </div>
-      ) : (
-        <div className="enhanced-mockup-tab h-[calc(100vh-120px)] flex items-center justify-center">
-          <p>Enhanced Mockup opens in a new window. If not opened, click <button onClick={() => window.open('/enhanced-vauto-mockup.html', 'EnhancedMockup', 'width=1400,height=900')}>Open Enhanced Mockup</button></p>
-        </div>
-      )}
+              ) : null}
     </div>
   );
 };

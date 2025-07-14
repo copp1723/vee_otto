@@ -74,6 +74,86 @@ Object.entries(featureMap).forEach(([feature, checkboxLabels]) => {
 });
 
 /**
+ * Parse window sticker text to extract features
+ * @param stickerText Raw text from window sticker
+ * @returns Object containing extracted features
+ */
+export function parseWindowStickerText(stickerText: string): { features: string[] } {
+  if (!stickerText || stickerText.trim().length === 0) {
+    return { features: [] };
+  }
+
+  // Common patterns for feature extraction
+  const featurePatterns = [
+    // Look for bullet points or dashes
+    /[•\-*]\s*([^•\-*\n]+)/g,
+    // Look for numbered lists
+    /\d+\.\s*([^\n]+)/g,
+    // Look for "Standard Equipment" or "Optional Equipment" sections
+    /(?:Standard|Optional)\s+Equipment[:\s]*([^•\-*\n]+)/gi,
+    // Look for features in parentheses
+    /\(([^)]+)\)/g,
+    // Look for features after colons
+    /:\s*([^•\-*\n]+)/g
+  ];
+
+  const features = new Set<string>();
+  
+  // Extract features using patterns
+  featurePatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(stickerText)) !== null) {
+      const feature = match[1]?.trim();
+      if (feature && feature.length > 3 && feature.length < 100) {
+        features.add(feature);
+      }
+    }
+  });
+
+  // Also look for known feature keywords
+  const knownFeatures = Object.keys(featureMap);
+  knownFeatures.forEach(feature => {
+    if (stickerText.toLowerCase().includes(feature.toLowerCase())) {
+      features.add(feature);
+    }
+  });
+
+  return { features: Array.from(features) };
+}
+
+/**
+ * Find features in sticker text using pattern matching
+ * @param stickerText Raw text from window sticker
+ * @returns Array of found features
+ */
+export function findFeaturesInStickerText(stickerText: string): string[] {
+  const { features } = parseWindowStickerText(stickerText);
+  return features;
+}
+
+/**
+ * Get possible checkbox labels for a given feature
+ * @param feature The feature name to find checkbox labels for
+ * @returns Array of possible checkbox labels
+ */
+export function getCheckboxLabels(feature: string): string[] {
+  // First check direct mapping
+  const directMappings = featureMap[feature] || [];
+  
+  // Also check reverse mapping for any checkbox labels that might match
+  const reverseMappings: string[] = [];
+  Object.entries(checkboxToFeatureMap).forEach(([checkboxLabel, features]) => {
+    if (features.includes(feature)) {
+      reverseMappings.push(checkboxLabel);
+    }
+  });
+
+  // Combine and deduplicate
+  const allLabels = [...directMappings, ...reverseMappings];
+  return [...new Set(allLabels)];
+}
+
+/**
  * Interface for feature matching result
  */
 export interface FeatureMatch {
