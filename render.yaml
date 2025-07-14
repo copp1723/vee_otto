@@ -4,7 +4,7 @@ services:
     name: vee-otto-native
     env: node
     buildCommand: bash scripts/render-build.sh
-    startCommand: bash dist/startup.sh
+    startCommand: bash build/startup.sh
     plan: standard
     healthCheckPath: /health
     envVars:
