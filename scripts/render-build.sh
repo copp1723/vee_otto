@@ -159,6 +159,15 @@ fi
 echo "📁 Creating runtime directories..."
 mkdir -p logs screenshots downloads
 
+# Ensure dashboard files are accessible from the correct path
+echo "📂 Verifying dashboard file accessibility..."
+if [ -d "dist/dashboard" ]; then
+    echo "Dashboard files found at dist/dashboard/"
+    ls -la dist/dashboard/ | head -5
+else
+    echo "⚠️ Dashboard files not found at dist/dashboard/"
+fi
+
 # Set proper permissions
 chmod 755 logs screenshots downloads
 
