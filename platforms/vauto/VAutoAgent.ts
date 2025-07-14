@@ -102,6 +102,17 @@ export class VAutoAgent extends BaseAgent {
       // Wait for potential 2FA selection page
       await this.page.waitForLoadState('networkidle');
       
+      // Add forced wait for 2FA page indicator
+      try {
+        await this.page.waitForSelector(vAutoSelectors.login.twoFactorTitle, { timeout: 10000 });
+        this.logger.info('2FA verification page detected');
+      } catch (error) {
+        this.logger.warn('2FA verification page not detected', error);
+        const html = await this.page.content();
+        this.logger.info(`Page HTML dump (truncated): ${html.slice(0, 1000)}...`);
+        await this.takeScreenshot('vauto-2fa-page-not-detected');
+      }
+      
       // Check if 2FA selection is needed (now only phone option exists)
       try {
         await this.takeScreenshot('vauto-2fa-options-page');
@@ -118,7 +129,7 @@ export class VAutoAgent extends BaseAgent {
         this.logger.info(`2FA Option Step: Visible button texts: ${JSON.stringify(buttonTexts)}`);
 
         // Look for "Select" buttons (robust: also try absolute XPath and fallback to any visible button)
-        let selectButtons = await this.page.locator('button:has-text("Select")').all();
+        let selectButtons = await this.page.locator(vAutoSelectors.login.phoneSelectButton).all();
         this.logger.info(`Found ${selectButtons.length} Select buttons`);
 
         // If none found, try the absolute XPath provided by user

@@ -374,8 +374,14 @@ export abstract class BaseAgent {
         }
         
         if (twoFactorConfig.successIndicator) {
-          const success = await page.locator(twoFactorConfig.successIndicator).isVisible();
-          return success;
+          if (twoFactorConfig.successIndicator.startsWith('http')) {
+            // URL-based check
+            await page.waitForURL(twoFactorConfig.successIndicator, { timeout: 10000 });
+            return true;
+          } else {
+            // Selector-based check
+            return await page.locator(twoFactorConfig.successIndicator).isVisible({ timeout: 10000 });
+          }
         }
         
         return true;

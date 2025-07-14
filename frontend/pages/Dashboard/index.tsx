@@ -466,20 +466,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           />
         </div>
       ) : activeTab === 'process-explorer' ? (
-        <div className="process-explorer-tab h-[calc(100vh-120px)]">
-          <iframe
-            src="/process-explorer.html"
-            title="Interactive Process Explorer"
-            className="w-full h-full border-0"
-          />
+        <div className="process-explorer-tab h-[calc(100vh-120px)] flex items-center justify-center">
+          <p>Process Explorer opens in a new window. If not opened, click <button onClick={() => window.open('/process-explorer.html', 'ProcessExplorer', 'width=1200,height=800')}>Open Process Explorer</button></p>
         </div>
       ) : (
-        <div className="enhanced-mockup-tab h-[calc(100vh-120px)]">
-          <iframe
-            src="/enhanced-vauto-mockup.html"
-            title="Enhanced vAuto Mockup"
-            className="w-full h-full border-0"
-          />
+        <div className="enhanced-mockup-tab h-[calc(100vh-120px)] flex items-center justify-center">
+          <p>Enhanced Mockup opens in a new window. If not opened, click <button onClick={() => window.open('/enhanced-vauto-mockup.html', 'EnhancedMockup', 'width=1400,height=900')}>Open Enhanced Mockup</button></p>
         </div>
       )}
     </div>

@@ -9,6 +9,8 @@ export const vAutoSelectors = {
     phoneOption: '//button[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //div[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //span[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //a[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //*[contains(@class, "phone") or contains(@class, "sms") or contains(@class, "text")]',
     otpInput: '//input[@type="text" or @type="number" or @type="tel"]',
     otpSubmit: '//button[@type="submit" or contains(text(), "Verify") or contains(text(), "Submit") or contains(text(), "Continue")]',
+    twoFactorTitle: '//*[contains(text(), "Verify your identity")]',
+    phoneSelectButton: '//button[contains(text(), "Select")]',
   },
   
   dashboard: {
