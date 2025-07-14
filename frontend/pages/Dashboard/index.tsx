@@ -179,11 +179,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setSystemStatus(data);
     });
 
+    // Add automation error handler
+    const unsubscribeAutomationError = webSocketService.subscribe('AUTOMATION_ERROR', (data) => {
+      console.error('Automation error received:', data);
+      const errorMessage = `Automation Error: ${data.error}`;
+      setError(errorMessage);
+      setAutomationLogs(prev => [...prev, `[${new Date(data.timestamp).toLocaleTimeString()}] ❌ ${errorMessage}`]);
+      setAutomationLoading(false);
+    });
+
     return () => {
       unsubscribeMetrics();
       unsubscribeQueue();
       unsubscribeCompletions();
       unsubscribeStatus();
+      unsubscribeAutomationError();
     };
   }, []);
 

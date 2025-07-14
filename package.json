@@ -30,6 +30,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
+    "test:automation-flow": "ts-node scripts/test-automation-flow.ts",
     "vauto": "ts-node scripts/run-vauto.ts",
     "vauto:once": "ts-node scripts/run-vauto.ts --once",
     "vauto:test": "TEST_MODE=true ts-node scripts/run-vauto.ts --once",

@@ -255,6 +255,53 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// System health check endpoint
+app.get('/api/health/system', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { systemHealthCheck } = await import('../core/utils/SystemHealthCheck');
+    const results = await systemHealthCheck.runFullHealthCheck();
+    
+    const hasErrors = results.some(r => r.status === 'error');
+    const hasWarnings = results.some(r => r.status === 'warning');
+    
+    res.status(hasErrors ? 500 : hasWarnings ? 200 : 200).json({
+      success: !hasErrors,
+      timestamp: new Date().toISOString(),
+      summary: {
+        healthy: results.filter(r => r.status === 'healthy').length,
+        warnings: results.filter(r => r.status === 'warning').length,
+        errors: results.filter(r => r.status === 'error').length
+      },
+      results
+    });
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// System health report endpoint
+app.get('/api/health/report', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { systemHealthCheck } = await import('../core/utils/SystemHealthCheck');
+    const report = await systemHealthCheck.generateHealthReport();
+    
+    res.setHeader('Content-Type', 'text/markdown');
+    res.send(report);
+  } catch (error) {
+    logger.error('Health report generation failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Health report generation failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Authentication endpoint
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { username, password } = req.body;
@@ -368,12 +415,17 @@ app.post('/api/automation/start', authenticateToken, async (req: Request, res: R
   try {
     logger.info('Starting vAuto automation...');
     
+    // Validate required environment variables
+    if (!process.env.VAUTO_USERNAME || !process.env.VAUTO_PASSWORD) {
+      throw new Error('Missing required environment variables: VAUTO_USERNAME and VAUTO_PASSWORD');
+    }
+    
     // Import and run the vAuto agent
     const { VAutoAgentWithDashboard } = await import('../platforms/vauto/VAutoAgentWithDashboard');
     
     const config = {
-      username: process.env.VAUTO_USERNAME || '',
-      password: process.env.VAUTO_PASSWORD || '',
+      username: process.env.VAUTO_USERNAME,
+      password: process.env.VAUTO_PASSWORD,
       headless: process.env.HEADLESS === 'false' ? false : true,
       slowMo: parseInt(process.env.SLOW_MO || '1000'),
       screenshotOnError: process.env.SCREENSHOT_ON_FAILURE === 'true',
@@ -387,37 +439,102 @@ app.post('/api/automation/start', authenticateToken, async (req: Request, res: R
       } : undefined
     };
     
+    logger.info('Automation configuration', { 
+      username: config.username,
+      headless: config.headless,
+      slowMo: config.slowMo,
+      maxVehicles: config.maxVehiclesToProcess,
+      readOnlyMode: config.readOnlyMode
+    });
+    
     // Update system status
     dashboardData.systemStatus.activeAgents = 1;
+    dashboardData.systemStatus.lastUpdate = new Date().toISOString();
     io.emit('STATUS_UPDATE', dashboardData.systemStatus);
     
-    // Run automation in background
+    // Create and initialize agent
     const agent = new VAutoAgentWithDashboard(config);
-    agent.initialize()
-      .then(() => agent.login())
-      .then(() => agent.processInventory())
-      .then(result => {
-        logger.info('Automation completed successfully', result);
+    
+    // Run automation in background with comprehensive error handling
+    const automationPromise = (async () => {
+      try {
+        logger.info('Initializing automation agent...');
+        await agent.initialize();
+        
+        logger.info('Starting login process...');
+        const loginResult = await agent.login();
+        if (!loginResult) {
+          throw new Error('Login failed');
+        }
+        
+        logger.info('Processing inventory...');
+        const result = await agent.processInventory();
+        
+        logger.info('Automation completed successfully', { 
+          vehiclesProcessed: result.vehicles?.length || 0,
+          totalVehicles: result.totalVehicles || 0,
+          successfulVehicles: result.successfulVehicles || 0,
+          failedVehicles: result.failedVehicles || 0,
+          duration: result.endTime.getTime() - result.startTime.getTime()
+        });
+        
+        return result;
+        
+      } catch (error) {
+        logger.error('Automation execution failed', { 
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        
+        // Send error notification via WebSocket
+        io.emit('AUTOMATION_ERROR', {
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString()
+        });
+        
+        throw error;
+        
+      } finally {
+        // Always cleanup agent resources
+        try {
+          await agent.cleanup();
+        } catch (cleanupError) {
+          logger.warn('Agent cleanup failed', cleanupError);
+        }
+        
+        // Reset system status
         dashboardData.systemStatus.activeAgents = 0;
+        dashboardData.systemStatus.lastUpdate = new Date().toISOString();
         io.emit('STATUS_UPDATE', dashboardData.systemStatus);
-      })
-      .catch(error => {
-        logger.error('Automation failed', error);
-        dashboardData.systemStatus.activeAgents = 0;
-        io.emit('STATUS_UPDATE', dashboardData.systemStatus);
-      });
+      }
+    })();
+    
+    // Don't await - let it run in background
+    automationPromise.catch(error => {
+      logger.error('Background automation failed', error);
+    });
     
     const response: ApiResponse<{ message: string }> = {
       success: true,
-      data: { message: 'Automation started' },
+      data: { message: 'Automation started successfully' },
       timestamp: new Date().toISOString()
     };
     res.json(response);
+    
   } catch (error) {
-    logger.error('Error starting automation:', error);
+    logger.error('Error starting automation:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    // Reset system status on startup failure
+    dashboardData.systemStatus.activeAgents = 0;
+    dashboardData.systemStatus.lastUpdate = new Date().toISOString();
+    io.emit('STATUS_UPDATE', dashboardData.systemStatus);
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to start automation',
+      error: error instanceof Error ? error.message : 'Failed to start automation',
       timestamp: new Date().toISOString()
     });
   }

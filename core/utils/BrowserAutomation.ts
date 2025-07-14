@@ -105,50 +105,124 @@ export class BrowserAutomation {
     }
   }
 
+  // Add fallback browser configurations
+  private getFallbackConfigurations(): BrowserConfig[] {
+    const baseConfig = { ...this.config };
+    
+    return [
+      // Original configuration
+      baseConfig,
+      
+      // Fallback 1: More restrictive args for containers
+      {
+        ...baseConfig,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--single-process'
+        ]
+      },
+      
+      // Fallback 2: Minimal configuration
+      {
+        ...baseConfig,
+        headless: true,
+        slowMo: 0,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote'
+        ]
+      },
+      
+      // Fallback 3: Basic headless with minimal args
+      {
+        ...baseConfig,
+        headless: true,
+        slowMo: 0,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        validateOnStart: false
+      }
+    ];
+  }
+
   private async launchBrowser(): Promise<void> {
-    try {
-      logger.info('Launching browser...', { headless: this.config.headless });
-
-      this.browser = await chromium.launch({
-        headless: this.config.headless,
-        slowMo: this.config.slowMo,
-        args: this.config.args
-      });
-
-      const contextOptions: any = {
-        viewport: this.config.viewport
-      };
-
-      if (this.config.userAgent) {
-        contextOptions.userAgent = this.config.userAgent;
-      }
-
-      if (this.config.extraHTTPHeaders) {
-        contextOptions.extraHTTPHeaders = this.config.extraHTTPHeaders;
-      }
-
-      this.context = await this.browser.newContext(contextOptions);
-      this.page = await this.context.newPage();
-
-      if (this.config.timeout) {
-        this.page.setDefaultTimeout(this.config.timeout);
-      }
-
-      // Test page functionality
-      await this.page.evaluate(() => navigator.userAgent);
+    const fallbackConfigs = this.getFallbackConfigurations();
+    let lastError: Error | null = null;
+    
+    for (let i = 0; i < fallbackConfigs.length; i++) {
+      const config = fallbackConfigs[i];
       
-      logger.info('Browser launched and context created successfully');
-      
-    } catch (error) {
-      // Clean up any partial initialization
-      if (this.browser) {
-        await this.browser.close().catch(() => {});
-        this.browser = null;
+      try {
+        logger.info(`Attempting browser launch with configuration ${i + 1}/${fallbackConfigs.length}`, {
+          headless: config.headless,
+          args: config.args
+        });
+
+        this.browser = await chromium.launch({
+          headless: config.headless,
+          slowMo: config.slowMo,
+          args: config.args
+        });
+
+        const contextOptions: any = {
+          viewport: config.viewport
+        };
+
+        if (config.userAgent) {
+          contextOptions.userAgent = config.userAgent;
+        }
+
+        if (config.extraHTTPHeaders) {
+          contextOptions.extraHTTPHeaders = config.extraHTTPHeaders;
+        }
+
+        this.context = await this.browser.newContext(contextOptions);
+        this.page = await this.context.newPage();
+
+        if (config.timeout) {
+          this.page.setDefaultTimeout(config.timeout);
+        }
+
+        // Test page functionality
+        await this.page.evaluate(() => navigator.userAgent);
+        
+        logger.info(`Browser launched successfully with configuration ${i + 1}`, {
+          headless: config.headless,
+          args: config.args
+        });
+        
+        // Update current config to the successful one
+        this.config = config;
+        return;
+        
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.warn(`Browser launch failed with configuration ${i + 1}`, {
+          error: lastError.message,
+          config: { headless: config.headless, args: config.args }
+        });
+        
+        // Clean up any partial initialization
+        if (this.browser) {
+          await this.browser.close().catch(() => {});
+          this.browser = null;
+        }
+        
+        // Continue to next fallback configuration
+        continue;
       }
-      
-      logger.error('Browser launch failed:', error);
-      throw new Error(`Browser launch failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+    
+    // If all fallbacks failed, throw the last error
+    throw new Error(`All browser launch configurations failed. Last error: ${lastError?.message || 'Unknown error'}`);
   }
 
   get currentPage(): Page {
