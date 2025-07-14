@@ -127,14 +127,21 @@ set -e
 
 echo "🚀 Starting Vee Otto application..."
 
+# Change to the dist directory where this script is located
+cd "$(dirname "$0")"
+
 # Validate browser installation at startup
 echo "🔍 Validating browser installation..."
 if ! node validate-browser.js; then
     echo "⚠️ Browser validation failed, attempting to reinstall..."
-    node ../node_modules/playwright/cli.js install chromium || {
+    # Navigate to project root to access node_modules
+    cd ..
+    node node_modules/playwright/cli.js install chromium || {
         echo "⚠️ Browser reinstallation failed, continuing anyway..."
         echo "The application will handle browser issues at runtime"
     }
+    # Return to dist directory
+    cd dist
 fi
 
 # Start the application
