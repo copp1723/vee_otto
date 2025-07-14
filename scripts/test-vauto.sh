@@ -77,6 +77,31 @@ echo "   Browser will be visible for monitoring"
 echo "   Press Ctrl+C to stop at any time"
 echo ""
 
+# Add diagnostic logging
+echo "🔍 DIAGNOSTIC: Checking automation setup..."
+echo "   PUBLIC_URL: ${PUBLIC_URL:-NOT SET}"
+echo "   TWO_FACTOR_METHOD: ${TWO_FACTOR_METHOD}"
+echo "   Server expected at: ${PUBLIC_URL:-http://localhost:3000}"
+echo "   Twilio webhook should point to: ${PUBLIC_URL:-http://localhost:3000}/webhooks/twilio/sms"
+echo ""
+
+# Check if server is running
+if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+    echo "✅ Server is running on port 3000"
+else
+    echo "❌ Server is NOT running on port 3000"
+    echo "   You may need to start the server first: npm run server:dev"
+fi
+
+# Check webhook endpoint
+if curl -s http://localhost:3000/api/2fa/latest > /dev/null 2>&1; then
+    echo "✅ 2FA webhook endpoint is accessible"
+else
+    echo "❌ 2FA webhook endpoint is NOT accessible"
+fi
+
+echo ""
+
 # Run the test
 npm run vauto:once
 

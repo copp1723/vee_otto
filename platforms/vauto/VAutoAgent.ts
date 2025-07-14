@@ -105,20 +105,52 @@ export class VAutoAgent extends BaseAgent {
       // Check if 2FA selection is needed (now only phone option exists)
       try {
         await this.takeScreenshot('vauto-2fa-options-page');
-        
-        // Look for "Select" buttons
-        const selectButtons = await this.page.locator('button:has-text("Select")').all();
+
+        // Log all visible button texts for diagnostics
+        const allButtons = await this.page.$$('button');
+        const buttonTexts = [];
+        for (const btn of allButtons) {
+          try {
+            const text = await btn.textContent();
+            if (text && text.trim()) buttonTexts.push(text.trim());
+          } catch {}
+        }
+        this.logger.info(`2FA Option Step: Visible button texts: ${JSON.stringify(buttonTexts)}`);
+
+        // Look for "Select" buttons (robust: also try absolute XPath and fallback to any visible button)
+        let selectButtons = await this.page.locator('button:has-text("Select")').all();
         this.logger.info(`Found ${selectButtons.length} Select buttons`);
-        
+
+        // If none found, try the absolute XPath provided by user
+        if (selectButtons.length === 0) {
+          const absXpath = '/html/body/div[2]/div/div[3]/div/div/div[1]/div[2]/div/div/div[2]/div/span[2]/button';
+          const absBtn = await this.page.locator(`xpath=${absXpath}`).first();
+          if (absBtn) {
+            this.logger.info('Found Select button via absolute XPath');
+            selectButtons = [absBtn];
+          }
+        }
+
+        // If still none, try any visible button on the page
+        if (selectButtons.length === 0) {
+          const allButtons = await this.page.$$('button');
+          for (const btn of allButtons) {
+            if (await btn.isVisible()) {
+              const text = (await btn.textContent())?.trim() || '';
+              this.logger.info(`Visible button: "${text}"`);
+            }
+          }
+        }
+
         if (selectButtons.length > 0) {
-          // With only phone option, click the first (and only) Select button
           this.logger.info('Clicking the Select button for phone 2FA');
+          await this.takeScreenshot('before-select-2fa-click');
           await selectButtons[0].click();
           await this.page.waitForLoadState('networkidle');
-          await this.takeScreenshot('vauto-phone-2fa-selected');
+          await this.takeScreenshot('after-select-2fa-click');
         } else {
           this.logger.info('No Select buttons found, checking for alternative methods');
-          
+
           // Alternative: Check for any button/link that might trigger 2FA
           const possibleSelectors = [
             'button:has-text("Continue")',
@@ -127,15 +159,17 @@ export class VAutoAgent extends BaseAgent {
             'a:has-text("Select")',
             'div[role="button"]:has-text("Select")'
           ];
-          
+
           let clicked = false;
           for (const selector of possibleSelectors) {
             try {
               const element = await this.page.locator(selector).first();
               if (await element.isVisible()) {
                 this.logger.info(`Found alternative selector: ${selector}`);
+                await this.takeScreenshot(`before-alt-selector-${selector.replace(/[^a-zA-Z0-9]/g, '_')}`);
                 await element.click();
                 await this.page.waitForLoadState('networkidle');
+                await this.takeScreenshot(`after-alt-selector-${selector.replace(/[^a-zA-Z0-9]/g, '_')}`);
                 clicked = true;
                 break;
               }
@@ -143,9 +177,12 @@ export class VAutoAgent extends BaseAgent {
               // Continue trying other selectors
             }
           }
-          
+
           if (!clicked) {
-            this.logger.warn('Could not find any 2FA selection button - proceeding anyway');
+            this.logger.warn('Could not find any 2FA selection button - dumping page HTML for diagnostics');
+            const html = await this.page.content();
+            this.logger.info(`2FA Option Step: Page HTML dump (truncated): ${html.slice(0, 1000)}...`);
+            await this.takeScreenshot('vauto-2fa-selection-error');
           }
         }
       } catch (error) {

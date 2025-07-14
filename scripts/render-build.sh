@@ -136,7 +136,7 @@ npm run build
 # Build frontend dashboard
 echo "🎨 Building frontend dashboard..."
 # Ensure we're in the project root for the dashboard build
-cd /opt/render/project || cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.."
 npm run dashboard:build
 echo "Dashboard build completed, checking output..."
 pwd
@@ -205,8 +205,8 @@ ls -la
 echo "📂 Contents of parent directory:"
 ls -la ..
 
-echo "📂 Looking for dashboard at ../../dist/dashboard:"
-ls -la ../../dist/dashboard/ 2>/dev/null || echo "❌ Dashboard directory not found"
+echo "📂 Looking for dashboard at ../dist/dashboard:"
+ls -la ../dist/dashboard/ 2>/dev/null || echo "❌ Dashboard directory not found"
 
 # Validate browser installation at startup
 echo "🔍 Validating browser installation..."

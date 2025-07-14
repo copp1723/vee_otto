@@ -46,7 +46,7 @@ const io = new Server(httpServer, {
 
 // Get project root directory - works in both dev and production
 const projectRoot = process.env.NODE_ENV === 'production'
-  ? path.resolve(process.cwd(), '../..')  // In production, cwd is /opt/render/project/src/build, need to go up 2 levels to /opt/render/project
+  ? path.resolve(process.cwd(), '..')  // In production, cwd is /opt/render/project/src/build, need to go up 1 level to /opt/render/project/src
   : path.resolve(__dirname, '../..');
 const dashboardPath = path.join(projectRoot, 'dist', 'dashboard');
 
@@ -197,11 +197,25 @@ app.post('/webhooks/twilio/health', (req: Request, res: Response) => {
 // Twilio SMS webhook endpoint
 app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
   const signature = req.headers['x-twilio-signature'] as string;
-  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  
+  // When using ngrok, we need to use the forwarded URL for signature validation
+  let url: string;
+  const forwardedHost = req.headers['x-forwarded-host'] as string;
+  const forwardedProto = req.headers['x-forwarded-proto'] as string;
+  
+  if (forwardedHost && forwardedProto) {
+    // Using ngrok or similar proxy
+    url = `${forwardedProto}://${forwardedHost}${req.originalUrl}`;
+    logger.debug(`Using forwarded URL for validation: ${url}`);
+  } else {
+    // Direct connection
+    url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  }
+  
   const params = req.body;
 
   if (!twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN || '', signature, url, params)) {
-    logger.warn('Invalid Twilio signature');
+    logger.warn(`Invalid Twilio signature for URL: ${url}`);
     return res.status(403).send('Invalid signature');
   }
 
@@ -227,12 +241,24 @@ app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
 
 // Endpoint for agent to fetch latest 2FA code (consumes code immediately)
 app.get('/api/2fa/latest', (req: Request, res: Response) => {
+  logger.info(`🔍 DIAGNOSTIC: 2FA code request received`);
+  logger.info(`   Stored codes count: ${storedCodes.length}`);
+  logger.info(`   Request from: ${req.ip}`);
+  logger.info(`   User-Agent: ${req.headers['user-agent']}`);
+  
   if (storedCodes.length > 0) {
     const latest = storedCodes[storedCodes.length - 1];
-    if (new Date().getTime() - new Date(latest.timestamp).getTime() < CODE_EXPIRATION_MS) {
+    const codeAge = new Date().getTime() - new Date(latest.timestamp).getTime();
+    
+    logger.info(`   Latest code: ${latest.code}`);
+    logger.info(`   Code age: ${Math.round(codeAge/1000)}s`);
+    logger.info(`   Code expiration: ${CODE_EXPIRATION_MS/1000}s`);
+    logger.info(`   From: ${latest.from}`);
+    
+    if (codeAge < CODE_EXPIRATION_MS) {
       // CRITICAL: Remove the code immediately after fetching to prevent reuse
       storedCodes.pop(); // Remove the latest code
-      logger.info(`2FA code consumed: ${latest.code} (timestamp: ${latest.timestamp})`);
+      logger.info(`✅ 2FA code consumed: ${latest.code} (timestamp: ${latest.timestamp})`);
       
       res.json({
         code: latest.code,
@@ -241,10 +267,11 @@ app.get('/api/2fa/latest', (req: Request, res: Response) => {
     } else {
       // Remove expired code
       storedCodes.pop();
-      logger.info(`Expired 2FA code discarded: ${latest.code} (timestamp: ${latest.timestamp})`);
+      logger.warn(`⚠️  Expired 2FA code discarded: ${latest.code} (age: ${Math.round(codeAge/1000)}s)`);
       res.status(404).json({ error: 'Latest code expired' });
     }
   } else {
+    logger.info(`❌ No 2FA codes available`);
     res.status(404).json({ error: 'No 2FA code received yet' });
   }
 });
@@ -674,12 +701,29 @@ app.get('*', (req: Request, res: Response) => {
   }
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  logger.info(`Dashboard available at http://localhost:${PORT}`);
-});
+// Start server function (only when explicitly called)
+export function startServer(port?: number) {
+  const PORT = port || process.env.PORT || 3000;
+  return new Promise<void>((resolve, reject) => {
+    httpServer.listen(PORT, (err?: Error) => {
+      if (err) {
+        reject(err);
+      } else {
+        logger.info(`Server running on port ${PORT}`);
+        logger.info(`Dashboard available at http://localhost:${PORT}`);
+        resolve();
+      }
+    });
+  });
+}
+
+// Auto-start server only if this file is run directly (not imported)
+if (require.main === module) {
+  startServer().catch((error) => {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

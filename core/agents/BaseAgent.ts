@@ -159,31 +159,58 @@ export abstract class BaseAgent {
 
       if (twoFactorConfig.webhookUrl) {
         // Poll webhook for code
-        this.logger.info(`Polling webhook for 2FA code at: ${twoFactorConfig.webhookUrl}`);
+        this.logger.info(`🔍 DIAGNOSTIC: Starting webhook polling for 2FA code`);
+        this.logger.info(`   Webhook URL: ${twoFactorConfig.webhookUrl}`);
+        this.logger.info(`   Timeout: ${timeout}ms`);
+        this.logger.info(`   Poll interval: 5000ms`);
+        
         let pollCount = 0;
         
         while (!code && (Date.now() - startTime < timeout)) {
           pollCount++;
+          const elapsed = Date.now() - startTime;
+          
           try {
-            this.logger.debug(`Poll attempt ${pollCount} to ${twoFactorConfig.webhookUrl}`);
+            this.logger.info(`📡 Poll attempt ${pollCount} (${Math.round(elapsed/1000)}s elapsed)`);
+            this.logger.debug(`   Fetching: ${twoFactorConfig.webhookUrl}`);
+            
             const response = await fetch(twoFactorConfig.webhookUrl);
+            
+            this.logger.debug(`   Response status: ${response.status} ${response.statusText}`);
             
             if (response.ok) {
               const data = await response.json();
-              this.logger.info(`Webhook response: ${JSON.stringify(data)}`);
+              this.logger.info(`   Response data: ${JSON.stringify(data)}`);
               
               if (data.code) {
                 code = data.code;
-                this.logger.info(`Successfully received 2FA code from webhook: ${code}`);
+                this.logger.info(`✅ Successfully received 2FA code: ${code}`);
+                this.logger.info(`   Total polls: ${pollCount}, elapsed time: ${Math.round(elapsed/1000)}s`);
+              } else if (data.error) {
+                this.logger.debug(`   Server message: ${data.error}`);
+              } else {
+                this.logger.debug(`   No code in response yet`);
               }
             } else {
-              this.logger.debug(`Webhook returned status ${response.status}: ${response.statusText}`);
+              this.logger.warn(`   HTTP error ${response.status}: ${response.statusText}`);
+              if (response.status === 404) {
+                this.logger.warn(`   Server or endpoint not found - check if server is running`);
+              }
             }
           } catch (fetchErr) {
-            this.logger.warn(`Webhook poll ${pollCount} failed:`, fetchErr);
+            this.logger.error(`❌ Poll ${pollCount} failed:`, fetchErr);
+            this.logger.error(`   URL: ${twoFactorConfig.webhookUrl}`);
+            this.logger.error(`   Error: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`);
           }
           
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          if (!code) {
+            this.logger.debug(`   Waiting 5s before next poll...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+        
+        if (!code) {
+          this.logger.error(`❌ Timeout after ${pollCount} polls over ${Math.round((Date.now() - startTime)/1000)}s`);
         }
       } else if (this.emailProvider) {
         // Existing email provider logic
