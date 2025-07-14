@@ -13,9 +13,24 @@ export interface DealershipConfig {
   enabled: boolean;
 }
 
+/**
+ * Utility to convert daily times (HH:MM) to cron expression
+ */
+function timesToCron(times: string[]): string {
+  const hours = times.map(time => {
+    const [hour, minute] = time.split(':').map(Number);
+    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      throw new Error(`Invalid time format: ${time}. Use HH:MM (24-hour).`);
+    }
+    return `${minute} ${hour}`;
+  });
+  return `${hours.join(',')} * * *`;
+}
+
 export interface SchedulerConfig {
   dealerships: DealershipConfig[];
   cronSchedule?: string; // Default: "0 7,14 * * *" (7am and 2pm)
+  dailyTimes?: string[]; // New: e.g., ["07:00", "14:00"]
   mailgunConfig?: any;
   testMode?: boolean; // If true, runs immediately instead of waiting for schedule
 }
@@ -39,7 +54,13 @@ export class VAutoScheduler {
       throw new Error('No dealerships configured');
     }
     
-    const cronSchedule = this.config.cronSchedule || '0 7,14 * * *';
+    let cronSchedule = this.config.cronSchedule || '0 7,14 * * *';
+    
+    // New: If dailyTimes provided, generate cron from it
+    if (this.config.dailyTimes && this.config.dailyTimes.length > 0) {
+      cronSchedule = timesToCron(this.config.dailyTimes);
+      this.logger.info(`Generated cron from dailyTimes: ${cronSchedule}`);
+    }
     
     // Create a job for each dealership
     for (const dealership of this.config.dealerships) {
@@ -211,6 +232,7 @@ export async function initializeScheduler(configPath?: string): Promise<VAutoSch
         }
       ],
       cronSchedule: process.env.CRON_SCHEDULE,
+      dailyTimes: (process.env.DAILY_TIMES || '').split(',').filter(t => t),
       testMode: process.env.TEST_MODE === 'true',
       mailgunConfig: process.env.MAILGUN_API_KEY ? {
         apiKey: process.env.MAILGUN_API_KEY,

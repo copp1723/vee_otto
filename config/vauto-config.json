@@ -20,6 +20,7 @@
     }
   ],
   "cronSchedule": "0 7,14 * * *",
+  "dailyTimes": ["07:00", "14:00"],
   "mailgunConfig": {
     "apiKey": "your-mailgun-api-key",
     "domain": "mg.yourdomain.com",

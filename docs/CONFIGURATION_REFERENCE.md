@@ -532,6 +532,8 @@ const scheduler = new VAutoScheduler({
 });
 ```
 
+In `config/vauto-config.json`, you can now use 'dailyTimes' as an alternative to 'cronSchedule' for simpler configuration. It's an array of times in HH:MM (24-hour) format, e.g., ["07:00", "14:00"]. This will automatically generate a cron expression like "0 7,14 * * *" for runs at those times every day. If both are provided, 'dailyTimes' takes precedence.
+
 ## Security Configuration
 
 ### Authentication
