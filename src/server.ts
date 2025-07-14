@@ -46,7 +46,7 @@ const io = new Server(httpServer, {
 
 // Get project root directory - works in both dev and production
 const projectRoot = process.env.NODE_ENV === 'production'
-  ? path.resolve(process.cwd(), '..')  // In production, cwd is /opt/render/project/src/build
+  ? path.resolve(process.cwd(), '../..')  // In production, cwd is /opt/render/project/src/build, need to go up 2 levels
   : path.resolve(__dirname, '../..');
 const dashboardPath = path.join(projectRoot, 'dist', 'dashboard');
 
