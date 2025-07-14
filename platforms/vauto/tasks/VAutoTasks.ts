@@ -1020,19 +1020,35 @@ async function processVehicleFeatures(page: Page, vin: string, config: any, logg
   try {
     await takeScreenshot(page, `vehicle-${vin}-details`);
     
-    // First, try to access Factory Equipment through iframe
+    // Look for Factory Equipment link/button in the Vehicle Info tab
     try {
-      logger.info('🏭 Accessing Factory Equipment through iframe...');
+      logger.info('🏭 Looking for Factory Equipment link in Vehicle Info tab...');
       
-      // Check if we need to switch to iframe
-      const gaugeIframe = page.frameLocator(vAutoSelectors.vehicleDetails.gaugePageIFrame);
+      // Try multiple selectors for the Factory Equipment link
+      const factoryEquipmentSelectors = [
+        '//a[contains(text(), "Factory Equipment")]',
+        '//button[contains(text(), "Factory Equipment")]',
+        '//a[contains(text(), "Window Sticker")]',
+        '//button[contains(text(), "Window Sticker")]',
+        '//a[contains(@href, "factory-equipment")]',
+        '//a[contains(@href, "window-sticker")]',
+        '//div[@class="factory-equipment-link"]//a',
+        '//td[contains(text(), "Factory Equipment")]//a'
+      ];
       
-      // Try to find Factory Equipment tab within iframe
-      const factoryTabInFrame = gaugeIframe.locator('#ext-gen201').first();
+      let factoryEquipmentLink: any = null;
+      for (const selector of factoryEquipmentSelectors) {
+        const link = page.locator(selector).first();
+        if (await link.isVisible()) {
+          factoryEquipmentLink = link;
+          logger.info(`Found Factory Equipment link with selector: ${selector}`);
+          break;
+        }
+      }
       
-      if (await factoryTabInFrame.isVisible()) {
-        logger.info('Found Factory Equipment tab in iframe, clicking...');
-        await factoryTabInFrame.click();
+      if (factoryEquipmentLink) {
+        logger.info('Clicking Factory Equipment link...');
+        await factoryEquipmentLink.click();
         await page.waitForTimeout(2000);
         
         // Check if a new window opened with title "factory-equipment-details"
@@ -1243,7 +1259,7 @@ async function processVehicleFeatures(page: Page, vin: string, config: any, logg
         }
         
       } else {
-        logger.warn('Factory Equipment tab not visible in iframe');
+        logger.warn('Factory Equipment link not found in Vehicle Info tab');
         
         // Try alternative approach - look for Factory Equipment tab outside iframe
         const factoryTab = page.locator(vAutoSelectors.vehicleDetails.factoryEquipmentTab).first();
