@@ -11,15 +11,28 @@ echo "🚀 Building Vee Otto for Render deployment..."
 echo "📦 Installing dependencies..."
 npm ci
 
+# Verify Playwright installation
+echo "🔍 Verifying Playwright installation..."
+if ! npm list playwright > /dev/null 2>&1; then
+    echo "❌ Playwright not found in dependencies, installing..."
+    npm install playwright
+fi
+
 # Install Playwright browsers for Render environment with enhanced caching
 echo "🎭 Installing Playwright browsers..."
 echo "Setting up Playwright cache directory..."
 export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
 mkdir -p $PLAYWRIGHT_BROWSERS_PATH
 
+# Ensure dist directory exists before creating validation script
+mkdir -p dist
+
 # Install browsers with system dependencies
 echo "Installing Chromium with system dependencies..."
-npx playwright install chromium --with-deps
+if ! npx playwright install chromium --with-deps; then
+    echo "⚠️ Initial browser installation failed, retrying with force..."
+    npx playwright install chromium --force --with-deps
+fi
 
 # Verify browser installation
 echo "🔍 Verifying browser installation..."
