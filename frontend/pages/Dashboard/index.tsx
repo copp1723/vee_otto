@@ -34,6 +34,10 @@ const Dashboard: React.FC = () => {
   const [chartLoading, setChartLoading] = useState(true);
   const [automationLoading, setAutomationLoading] = useState(false);
   
+  // Automation monitoring
+  const [automationLogs, setAutomationLogs] = useState<string[]>([]);
+  const [isWatchingAutomation, setIsWatchingAutomation] = useState(false);
+  
   // Error states
   const [error, setError] = useState<string | null>(null);
 
@@ -110,18 +114,27 @@ const Dashboard: React.FC = () => {
   const handleStartAutomation = useCallback(async () => {
     try {
       setAutomationLoading(true);
+      setIsWatchingAutomation(true);
+      setAutomationLogs([]);
       setError(null);
+      
       const result = await apiService.startAutomation();
-      console.log('Automation started:', result.message);
+      setAutomationLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ ${result.message}`]);
+      
       // Refresh dashboard data after starting automation
       await fetchDashboardData();
     } catch (err) {
       console.error('Failed to start automation:', err);
       setError('Failed to start automation. Please try again.');
+      setAutomationLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Error: ${err instanceof Error ? err.message : 'Failed to start automation'}`]);
     } finally {
       setAutomationLoading(false);
     }
   }, [fetchDashboardData]);
+
+  const clearAutomationLogs = useCallback(() => {
+    setAutomationLogs([]);
+  }, []);
 
   // WebSocket event handlers
   useEffect(() => {
@@ -346,6 +359,50 @@ const Dashboard: React.FC = () => {
                 />
               </Suspense>
             </section>
+
+            {/* Automation Logs */}
+            {isWatchingAutomation && (
+              <section className={styles.section} style={{ marginTop: '2rem' }}>
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle}>🤖 Automation Logs</h2>
+                  <button
+                    onClick={clearAutomationLogs}
+                    style={{
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '12px',
+                      backgroundColor: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '3px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Clear Logs
+                  </button>
+                </div>
+                <div style={{
+                  maxHeight: '400px',
+                  overflowY: 'auto',
+                  backgroundColor: '#1e1e1e',
+                  color: '#00ff00',
+                  fontFamily: 'Courier New, monospace',
+                  fontSize: '12px',
+                  padding: '1rem',
+                  borderRadius: '4px',
+                  marginTop: '1rem'
+                }}>
+                  {automationLogs.length === 0 ? (
+                    <p style={{ color: '#888', margin: 0 }}>Waiting for automation to start...</p>
+                  ) : (
+                    automationLogs.map((log, index) => (
+                      <div key={index} style={{ marginBottom: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                        {log}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
           </main>
         </div>
       ) : activeTab === 'mockup' ? (
