@@ -67,7 +67,15 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio form POSTs
-app.use(express.static(dashboardPath));
+
+// Only serve static dashboard files if the directory exists
+if (require('fs').existsSync(dashboardPath)) {
+  app.use(express.static(dashboardPath));
+  logger.info('Dashboard static files configured at:', dashboardPath);
+} else {
+  logger.warn('Dashboard directory not found, dashboard UI will not be available:', dashboardPath);
+}
+
 // Serve vAuto mockup test site statically
 app.use('/test-mockup', express.static(path.join(projectRoot, 'tests/fixtures/vauto-mockup')));
 
@@ -641,7 +649,22 @@ export function updateFromAgent(data: {
 // Serve frontend for all non-API routes
 app.get('*', (req: Request, res: Response) => {
   const indexPath = path.join(dashboardPath, 'index.html');
-  res.sendFile(indexPath);
+  
+  // Check if dashboard exists before trying to serve it
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(503).json({
+      error: 'Dashboard UI not available',
+      message: 'The dashboard interface is not yet deployed. API endpoints are still functional.',
+      apiEndpoints: {
+        health: '/health',
+        auth: '/api/auth/login',
+        metrics: '/api/metrics',
+        automation: '/api/automation/start'
+      }
+    });
+  }
 });
 
 // Start server
