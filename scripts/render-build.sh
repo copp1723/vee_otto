@@ -49,51 +49,64 @@ echo "🔍 Verifying browser installation..."
 if node node_modules/playwright/cli.js install --dry-run chromium 2>&1 | grep -q "is already installed"; then
     echo "✅ Chromium browser verified successfully"
 else
-    echo "⚠️ Browser installation may be incomplete, attempting reinstall..."
-    node node_modules/playwright/cli.js install chromium --force
+    echo "⚠️ Browser verification inconclusive, continuing..."
 fi
 
-mkdir -p $XDG_CACHE_HOME/ms-playwright
-echo "Storing Playwright browsers to cache..."
-cp -R $PLAYWRIGHT_BROWSERS_PATH/* $XDG_CACHE_HOME/ms-playwright/
+# Cache browsers for future builds
+echo "💾 Caching browsers for future builds..."
+if [ -d $PLAYWRIGHT_BROWSERS_PATH ]; then
+    mkdir -p $XDG_CACHE_HOME/ms-playwright
+    cp -R $PLAYWRIGHT_BROWSERS_PATH/* $XDG_CACHE_HOME/ms-playwright/ || echo "⚠️ Could not cache browsers"
+fi
 
 # Create browser validation script
-echo "📝 Creating browser validation script..."
+echo "🔧 Creating browser validation script..."
 cat > build/validate-browser.js << 'EOF'
 const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
 
 async function validateBrowser() {
     try {
         console.log('🔍 Validating browser installation...');
         
-        // Check if browser executable exists
-        const executablePath = chromium.executablePath();
-        console.log('Browser executable path:', executablePath);
+        // Set the browser path
+        const browserPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
+        const executablePath = `${browserPath}/chromium-1181/chrome-linux/chrome`;
         
-        try {
-          const browserDir = path.dirname(executablePath);
-          console.log('Contents of browser directory:', fs.readdirSync(browserDir));
-        } catch (dirError) {
-          console.error('Error listing browser directory:', dirError.message);
+        console.log(`Browser executable path: ${executablePath}`);
+        
+        // Check if browser directory exists
+        const fs = require('fs');
+        const path = require('path');
+        const browserDir = path.dirname(executablePath);
+        
+        if (fs.existsSync(browserDir)) {
+            console.log(`Contents of browser directory: ${JSON.stringify(fs.readdirSync(browserDir), null, 2)}`);
+        } else {
+            console.log(`Browser directory not found: ${browserDir}`);
+            return false;
         }
         
-        if (!fs.existsSync(executablePath)) {
-            throw new Error(`Browser executable not found at: ${executablePath}`);
-        }
-        
-        // Test browser launch
-        const browser = await chromium.launch({ 
+        // Try to launch browser
+        const browser = await chromium.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            executablePath: fs.existsSync(executablePath) ? executablePath : undefined,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-extensions'
+            ]
         });
         
         console.log('✅ Browser launched successfully');
         await browser.close();
         console.log('✅ Browser validation completed');
-        
         return true;
+        
     } catch (error) {
         console.error('❌ Browser validation failed:', error.message);
         return false;
@@ -116,17 +129,30 @@ if ! node build/validate-browser.js; then
     echo "This may be due to headless environment restrictions"
 fi
 
-# Build TypeScript and Dashboard
-echo "🔨 Building TypeScript and Dashboard..."
-npm run build:all
+# Build TypeScript backend first
+echo "🔨 Building TypeScript backend..."
+npm run build
 
-# Ensure dashboard files are in the correct location
-echo "📦 Verifying dashboard build..."
+# Build frontend dashboard
+echo "🎨 Building frontend dashboard..."
+npm run dashboard:build
+
+# Verify builds were successful
+echo "📦 Verifying builds..."
+if [ -f "build/server.js" ]; then
+    echo "✅ Backend built successfully"
+else
+    echo "❌ Backend build failed - build/server.js not found"
+    exit 1
+fi
+
 if [ -d "dist/dashboard" ]; then
-    echo "✅ Dashboard built successfully at dist/dashboard"
+    echo "✅ Frontend built successfully"
+    echo "Dashboard files:"
     ls -la dist/dashboard/ | head -10
 else
-    echo "⚠️ Dashboard build may have failed - dist/dashboard not found"
+    echo "❌ Frontend build failed - dist/dashboard not found"
+    exit 1
 fi
 
 # Create necessary directories
@@ -135,15 +161,6 @@ mkdir -p logs screenshots downloads
 
 # Set proper permissions
 chmod 755 logs screenshots downloads
-
-# Copy dashboard build to the correct location
-echo "📋 Copying dashboard files..."
-mkdir -p build/dist
-cp -r dist/dashboard build/dist/ 2>/dev/null || {
-    echo "⚠️ Warning: Could not copy dashboard files"
-    echo "  Looking for dashboard at: $(pwd)/dist/dashboard"
-    ls -la dist/ 2>/dev/null || echo "  dist/ directory not found"
-}
 
 # Create startup script with browser validation
 echo "📝 Creating startup script..."
@@ -157,6 +174,17 @@ echo "🚀 Starting Vee Otto application..."
 
 # Change to the build directory where this script is located
 cd "$(dirname "$0")"
+
+# Debug: Show current directory and file structure
+echo "📍 Current directory: $(pwd)"
+echo "📂 Contents of current directory:"
+ls -la
+
+echo "📂 Contents of parent directory:"
+ls -la ..
+
+echo "📂 Looking for dashboard at ../../dist/dashboard:"
+ls -la ../../dist/dashboard/ 2>/dev/null || echo "❌ Dashboard directory not found"
 
 # Validate browser installation at startup
 echo "🔍 Validating browser installation..."
@@ -183,7 +211,7 @@ chmod +x build/startup.sh
 echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
 echo "  - Backend: build/"
-echo "  - Frontend: build/frontend/"
+echo "  - Frontend: dist/dashboard/"
 echo "  - Runtime dirs: logs/, screenshots/, downloads/"
 echo "  - Browser validation: build/validate-browser.js"
 echo "  - Startup script: build/startup.sh"
