@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import * as dotenv from 'dotenv';
-import { VAutoAgent } from './src/agents/VAutoAgent';
-import { Logger } from './src/utils/Logger';
+import { VAutoAgent } from '../platforms/vauto/VAutoAgent';
+import { Logger } from '../core/utils/Logger';
 import { chromium } from 'playwright';
-import { vAutoSelectors } from './src/config/vautoSelectors';
+import { vAutoSelectors } from '../platforms/vauto/vautoSelectors';
 
 // Load environment variables
 dotenv.config();

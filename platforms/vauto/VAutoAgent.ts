@@ -167,8 +167,8 @@ export class VAutoAgent extends BaseAgent {
         const twoFactorMethod = process.env.TWO_FACTOR_METHOD || 'email';
         
         if (twoFactorMethod === 'sms') {
-          // Set webhook URL for polling SMS code - use port 10000 where our server is running
-          const serverPort = process.env.PORT || '10000';
+          // Set webhook URL for polling SMS code - use port 3000 where our server is running
+          const serverPort = process.env.PORT || '3000';
           twoFactorConfig.webhookUrl = `${process.env.PUBLIC_URL || `http://localhost:${serverPort}`}/api/2fa/latest`;
           this.logger.info(`Using SMS method for 2FA with webhook URL: ${twoFactorConfig.webhookUrl}`);
         } else {

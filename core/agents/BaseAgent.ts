@@ -198,10 +198,151 @@ export abstract class BaseAgent {
       }
 
       if (twoFactorConfig.codeInputSelector) {
-        await this.browser.fillInput(twoFactorConfig.codeInputSelector, code);
+        this.logger.info(`Attempting to fill 2FA code: ${code} into selector: ${twoFactorConfig.codeInputSelector}`);
+        
+        // Take screenshot before entering code
+        await this.browser.takeScreenshot('2fa-before-code-entry');
+        
+        // Handle XPath selectors properly
+        const inputSelector = twoFactorConfig.codeInputSelector.startsWith('//')
+          ? { xpath: twoFactorConfig.codeInputSelector }
+          : { css: twoFactorConfig.codeInputSelector };
+        
+        // Try to find the input element first
+        const inputElement = await this.browser.findElement(inputSelector);
+        if (!inputElement) {
+          this.logger.error(`Could not find 2FA input element with selector: ${twoFactorConfig.codeInputSelector}`);
+          await this.browser.takeScreenshot('2fa-input-not-found');
+          throw new Error(`2FA input element not found: ${twoFactorConfig.codeInputSelector}`);
+        }
+        
+        // Clear the input first
+        this.logger.debug('Clearing 2FA input field...');
+        await inputElement.clear();
+        await page.waitForTimeout(500);
+        
+        // Try multiple methods to enter the code
+        let inputFilled = false;
+        const methods = [
+          // Method 1: Use fillInput with clear option
+          async () => {
+            this.logger.debug('Trying fillInput method...');
+            return await this.browser.fillInput(inputSelector, code, { clear: true, delay: 100 });
+          },
+          // Method 2: Click and type
+          async () => {
+            this.logger.debug('Trying click and type method...');
+            await inputElement.click();
+            await page.waitForTimeout(300);
+            await page.keyboard.type(code, { delay: 100 });
+            return true;
+          },
+          // Method 3: Direct fill
+          async () => {
+            this.logger.debug('Trying direct fill method...');
+            await inputElement.fill(code);
+            return true;
+          }
+        ];
+        
+        for (const method of methods) {
+          try {
+            inputFilled = await method();
+            if (inputFilled) {
+              this.logger.info('Successfully filled 2FA code input');
+              break;
+            }
+          } catch (err) {
+            this.logger.warn(`Method failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+        
+        if (!inputFilled) {
+          await this.browser.takeScreenshot('2fa-fill-failed');
+          throw new Error(`Failed to fill 2FA code input after trying multiple methods: ${twoFactorConfig.codeInputSelector}`);
+        }
+        
+        // Verify the code was entered
+        await page.waitForTimeout(500);
+        const enteredValue = await inputElement.inputValue();
+        this.logger.info(`Verified entered value: ${enteredValue}`);
+        
+        // Take screenshot after entering code
+        await this.browser.takeScreenshot('2fa-after-code-entry');
         
         if (twoFactorConfig.submitSelector) {
-          await this.browser.reliableClick(twoFactorConfig.submitSelector);
+          this.logger.info(`Looking for submit button: ${twoFactorConfig.submitSelector}`);
+          
+          const submitSelector = twoFactorConfig.submitSelector.startsWith('//')
+            ? { xpath: twoFactorConfig.submitSelector }
+            : { css: twoFactorConfig.submitSelector };
+          
+          // Wait a moment before clicking submit
+          await page.waitForTimeout(1000);
+          
+          // Take screenshot before clicking submit
+          await this.browser.takeScreenshot('2fa-before-submit');
+          
+          // Try to find the submit button first
+          const submitElement = await this.browser.findElement(submitSelector);
+          if (!submitElement) {
+            this.logger.error(`Could not find 2FA submit button with selector: ${twoFactorConfig.submitSelector}`);
+            await this.browser.takeScreenshot('2fa-submit-not-found');
+            throw new Error(`2FA submit button not found: ${twoFactorConfig.submitSelector}`);
+          }
+          
+          // Check if button is enabled
+          const isEnabled = await submitElement.isEnabled();
+          if (!isEnabled) {
+            this.logger.warn('Submit button is disabled, waiting for it to be enabled...');
+            await page.waitForTimeout(2000);
+          }
+          
+          // Try multiple methods to click the submit button
+          let submitClicked = false;
+          const clickMethods: Array<() => Promise<boolean>> = [
+            // Method 1: Use reliableClick
+            async (): Promise<boolean> => {
+              this.logger.debug('Trying reliableClick method...');
+              await this.browser.reliableClick(submitSelector);
+              return true;
+            },
+            // Method 2: Direct click
+            async (): Promise<boolean> => {
+              this.logger.debug('Trying direct click method...');
+              await submitElement.click();
+              return true;
+            },
+            // Method 3: JavaScript click
+            async (): Promise<boolean> => {
+              this.logger.debug('Trying JavaScript click method...');
+              await submitElement.evaluate((el) => (el as HTMLElement).click());
+              return true;
+            }
+          ];
+          
+          for (const method of clickMethods) {
+            try {
+              submitClicked = await method();
+              if (submitClicked) {
+                this.logger.info('Successfully clicked 2FA submit button');
+                break;
+              }
+            } catch (err) {
+              this.logger.warn(`Click method failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          
+          if (!submitClicked) {
+            await this.browser.takeScreenshot('2fa-submit-failed');
+            throw new Error(`Failed to click 2FA submit button after trying multiple methods: ${twoFactorConfig.submitSelector}`);
+          }
+          
+          // Take screenshot after clicking submit
+          await page.waitForTimeout(1000);
+          await this.browser.takeScreenshot('2fa-after-submit');
+          
+          // Wait for page to load after submit
           await page.waitForLoadState('networkidle');
         }
         

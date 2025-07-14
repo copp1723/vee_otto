@@ -7,8 +7,8 @@ export const vAutoSelectors = {
     password: '//input[@type="password"]',
     submit: '//button[@type="submit"]',
     phoneOption: '//button[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //div[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //span[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //a[contains(text(), "Text") or contains(text(), "SMS") or contains(text(), "Phone")] | //*[contains(@class, "phone") or contains(@class, "sms") or contains(@class, "text")]',
-    otpInput: '//input[contains(@id, "otp")] | //input[contains(@name, "otp")] | //input[contains(@placeholder, "code")] | //input[@type="text"][contains(@class, "code")] | //input[@type="number"] | //input[contains(@id, "verification")] | //input[contains(@name, "verification")]',
-    otpSubmit: '//button[contains(text(), "Verify")] | //button[contains(text(), "Submit")] | //button[contains(text(), "Continue")] | //button[@type="submit"] | //input[@type="submit"]',
+    otpInput: '//input[@type="text" or @type="number" or @type="tel"]',
+    otpSubmit: '//button[@type="submit" or contains(text(), "Verify") or contains(text(), "Submit") or contains(text(), "Continue")]',
   },
   
   dashboard: {
