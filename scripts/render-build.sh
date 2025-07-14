@@ -14,11 +14,16 @@ npm ci
 # Install Playwright browsers for Render environment with enhanced caching
 echo "🎭 Installing Playwright browsers..."
 echo "Setting up Playwright cache directory..."
-export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.cache/ms-playwright
 mkdir -p $PLAYWRIGHT_BROWSERS_PATH
 
-# Ensure dist directory exists before creating validation script
-mkdir -p dist
+if [ -d $XDG_CACHE_HOME/ms-playwright ]; then
+  echo "Restoring Playwright browsers from cache..."
+  cp -R $XDG_CACHE_HOME/ms-playwright/* $PLAYWRIGHT_BROWSERS_PATH/
+fi
+
+# Ensure build directory exists before creating validation script
+mkdir -p build
 
 # Install browsers without system dependencies (Render has them pre-installed)
 echo "Installing Chromium browser..."
@@ -48,11 +53,16 @@ else
     node node_modules/playwright/cli.js install chromium --force
 fi
 
+mkdir -p $XDG_CACHE_HOME/ms-playwright
+echo "Storing Playwright browsers to cache..."
+cp -R $PLAYWRIGHT_BROWSERS_PATH/* $XDG_CACHE_HOME/ms-playwright/
+
 # Create browser validation script
 echo "📝 Creating browser validation script..."
-cat > dist/validate-browser.js << 'EOF'
+cat > build/validate-browser.js << 'EOF'
 const { chromium } = require('playwright');
 const fs = require('fs');
+const path = require('path');
 
 async function validateBrowser() {
     try {
@@ -61,6 +71,13 @@ async function validateBrowser() {
         // Check if browser executable exists
         const executablePath = chromium.executablePath();
         console.log('Browser executable path:', executablePath);
+        
+        try {
+          const browserDir = path.dirname(executablePath);
+          console.log('Contents of browser directory:', fs.readdirSync(browserDir));
+        } catch (dirError) {
+          console.error('Error listing browser directory:', dirError.message);
+        }
         
         if (!fs.existsSync(executablePath)) {
             throw new Error(`Browser executable not found at: ${executablePath}`);
@@ -94,7 +111,7 @@ EOF
 
 # Run browser validation
 echo "🧪 Running browser validation..."
-if ! node dist/validate-browser.js; then
+if ! node build/validate-browser.js; then
     echo "⚠️ Browser validation failed, but continuing with build..."
     echo "This may be due to headless environment restrictions"
 fi
@@ -116,18 +133,20 @@ chmod 755 logs screenshots downloads
 
 # Copy static files for frontend deployment
 echo "📋 Preparing static files..."
-mkdir -p dist/frontend
-cp -r frontend/public/* dist/frontend/ 2>/dev/null || true
+mkdir -p build/frontend
+cp -r frontend/public/* build/frontend/ 2>/dev/null || true
 
 # Create startup script with browser validation
 echo "📝 Creating startup script..."
-cat > dist/startup.sh << 'EOF'
+cat > build/startup.sh << 'EOF'
 #!/bin/bash
 set -e
 
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.cache/ms-playwright
+
 echo "🚀 Starting Vee Otto application..."
 
-# Change to the dist directory where this script is located
+# Change to the build directory where this script is located
 cd "$(dirname "$0")"
 
 # Validate browser installation at startup
@@ -136,25 +155,26 @@ if ! node validate-browser.js; then
     echo "⚠️ Browser validation failed, attempting to reinstall..."
     # Navigate to project root to access node_modules
     cd ..
+    export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.cache/ms-playwright
     node node_modules/playwright/cli.js install chromium || {
         echo "⚠️ Browser reinstallation failed, continuing anyway..."
         echo "The application will handle browser issues at runtime"
     }
-    # Return to dist directory
-    cd dist
+    # Return to build directory
+    cd build
 fi
 
 # Start the application
 echo "🎯 Starting server..."
-exec node server.js
+exec node src/server.js
 EOF
 
-chmod +x dist/startup.sh
+chmod +x build/startup.sh
 
 echo "✅ Build completed successfully!"
 echo "📊 Build artifacts:"
-echo "  - Backend: dist/"
-echo "  - Frontend: dist/frontend/"
+echo "  - Backend: build/"
+echo "  - Frontend: build/frontend/"
 echo "  - Runtime dirs: logs/, screenshots/, downloads/"
-echo "  - Browser validation: dist/validate-browser.js"
-echo "  - Startup script: dist/startup.sh"
+echo "  - Browser validation: build/validate-browser.js"
+echo "  - Startup script: build/startup.sh"
