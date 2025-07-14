@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import { apiService } from './services/apiService';
 import './theme.css';
 
 // Hide loading screen immediately after React loads
@@ -76,15 +78,59 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-// App component
+// App component with authentication
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+
   React.useEffect(() => {
     hideLoadingScreen();
+    
+    // Check authentication on app load
+    const checkAuth = () => {
+      const token = apiService.getToken();
+      console.log('App: Authentication check - token present:', !!token);
+      
+      if (token) {
+        setIsAuthenticated(true);
+      }
+      setIsLoading(false);
+    };
+    
+    checkAuth();
   }, []);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    apiService.clearToken();
+    setIsAuthenticated(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        backgroundColor: 'var(--bg-primary)',
+        color: 'var(--text-primary)'
+      }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>
-      <Dashboard />
+      {isAuthenticated ? (
+        <Dashboard onLogout={handleLogout} />
+      ) : (
+        <Login onLogin={handleLogin} />
+      )}
     </ErrorBoundary>
   );
 };

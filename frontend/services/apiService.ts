@@ -13,10 +13,18 @@ class ApiService {
   private token: string | null = null;
 
   constructor() {
-    // In production, use relative URL to same origin
-    // In development, use localhost or env variable
+    // Debug: Log environment and URL configuration
+    console.log('API Service Configuration:', {
+      NODE_ENV: process.env.NODE_ENV,
+      windowLocation: window.location.origin,
+      baseURL: process.env.NODE_ENV === 'production'
+        ? `${window.location.origin}/api`
+        : 'http://localhost:10000/api'
+    });
+
+    // Use window.location.origin for production to handle Render's dynamic URLs
     const baseURL = process.env.NODE_ENV === 'production'
-      ? '/api'
+      ? `${window.location.origin}/api`
       : (process.env.REACT_APP_API_URL || 'http://localhost:10000/api');
     
     this.axiosInstance = axios.create({
@@ -62,22 +70,28 @@ class ApiService {
     if (!this.token) {
       this.token = localStorage.getItem('authToken');
     }
+    console.log('apiService: Getting token - exists:', !!this.token);
     return this.token;
   }
 
   clearToken() {
+    console.log('apiService: Clearing token');
     this.token = null;
     localStorage.removeItem('authToken');
   }
 
   async login(username: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> {
+    console.log('apiService: Attempting login for username:', username);
     try {
       const response = await this.axiosInstance.post('/auth/login', { username, password });
+      console.log('apiService: Login response:', response.data);
       if (response.data.success && response.data.token) {
         this.setToken(response.data.token);
+        console.log('apiService: Token set successfully');
       }
       return response.data;
     } catch (error: any) {
+      console.error('apiService: Login error:', error);
       return {
         success: false,
         error: error.response?.data?.error || 'Login failed'
@@ -134,7 +148,9 @@ class ApiService {
   }
 
   async startAutomation(): Promise<{ message: string }> {
+    console.log('apiService: Starting automation...');
     const response = await this.axiosInstance.post<ApiResponse<{ message: string }>>('/automation/start');
+    console.log('apiService: Start automation response:', response.data);
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to start automation');
     }

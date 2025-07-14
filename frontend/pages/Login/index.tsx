@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 import styles from './Login.module.css';
 
-const Login: React.FC = () => {
-  const navigate = useNavigate();
+interface LoginProps {
+  onLogin: () => void;
+}
+
+const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,14 +18,18 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
+      console.log('Login: Attempting authentication...');
       const response = await apiService.login(username, password);
       
       if (response.success) {
-        navigate('/dashboard');
+        console.log('Login: Authentication successful');
+        onLogin();
       } else {
+        console.error('Login: Authentication failed:', response.error);
         setError(response.error || 'Login failed');
       }
     } catch (err) {
+      console.error('Login: Unexpected error:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

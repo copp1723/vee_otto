@@ -17,7 +17,11 @@ import { apiService } from '../../services/apiService';
 import { webSocketService } from '../../services/webSocketService';
 import styles from './Dashboard.module.css';
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onLogout?: () => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const isDev = process.env.NODE_ENV !== 'production';
   // State management
@@ -46,6 +50,22 @@ const Dashboard: React.FC = () => {
     try {
       setError(null);
       
+      // Debug: Check which service is being used
+      console.log('Dashboard: Fetching data using', isDev ? 'mockApiService' : 'apiService');
+      
+      // Use real API service in production, mock in development
+      const service = isDev ? mockApiService : apiService;
+      
+      // Check authentication
+      const token = apiService.getToken();
+      console.log('Dashboard: Authentication token present:', !!token);
+      
+      if (!isDev && !token) {
+        console.log('Dashboard: No token found, redirecting to login');
+        window.location.href = '/login';
+        return;
+      }
+      
       // Fetch all data in parallel
       const [
         metricsData,
@@ -54,11 +74,11 @@ const Dashboard: React.FC = () => {
         chartData,
         statusData
       ] = await Promise.all([
-        mockApiService.getDashboardMetrics(),
-        mockApiService.getActionQueue(),
-        mockApiService.getRecentCompletions(),
-        mockApiService.getPerformanceData(),
-        mockApiService.getSystemStatus()
+        service.getDashboardMetrics(),
+        service.getActionQueue(),
+        service.getRecentCompletions(),
+        service.getPerformanceData(),
+        service.getSystemStatus()
       ]);
 
       setMetrics(metricsData);
@@ -76,7 +96,7 @@ const Dashboard: React.FC = () => {
       setCompletionsLoading(false);
       setChartLoading(false);
     }
-  }, []);
+  }, [isDev]);
 
   const refreshRecentCompletions = useCallback(async () => {
     try {
@@ -118,15 +138,20 @@ const Dashboard: React.FC = () => {
       setAutomationLogs([]);
       setError(null);
       
+      console.log('Dashboard: Starting automation...');
+      
       const result = await apiService.startAutomation();
+      console.log('Dashboard: Automation started successfully:', result);
+      
       setAutomationLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ ${result.message}`]);
       
       // Refresh dashboard data after starting automation
       await fetchDashboardData();
     } catch (err) {
       console.error('Failed to start automation:', err);
-      setError('Failed to start automation. Please try again.');
-      setAutomationLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Error: ${err instanceof Error ? err.message : 'Failed to start automation'}`]);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start automation';
+      setError(`Failed to start automation: ${errorMessage}`);
+      setAutomationLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Error: ${errorMessage}`]);
     } finally {
       setAutomationLoading(false);
     }
@@ -290,6 +315,23 @@ const Dashboard: React.FC = () => {
                     )}
                   </span>
                 </div>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Logout
+                  </button>
+                )}
               </div>
             </div>
           </header>
