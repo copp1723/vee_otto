@@ -147,6 +147,17 @@ for i in {1..30}; do
     sleep 1
 done
 
+# Start ngrok if not running
+if ! pgrep -f 'ngrok http 3000' > /dev/null; then
+    ngrok http 3000 &> ngrok.log &
+    NGROK_PID=$!
+    sleep 2
+fi
+
+# Get ngrok URL
+NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*.ngrok-free.app')
+export PUBLIC_URL=$NGROK_URL
+
 echo ""
 print_status "Step 2: Configuring Twilio webhook for local testing..."
 
@@ -154,7 +165,7 @@ print_status "Step 2: Configuring Twilio webhook for local testing..."
 node update-twilio-webhook-local.js || {
     print_warning "Could not update Twilio webhook automatically"
     print_status "You may need to manually set your Twilio webhook to:"
-    print_status "http://localhost:3000/webhooks/twilio/sms"
+    print_status "$PUBLIC_URL/webhooks/twilio/sms"
 }
 
 echo ""

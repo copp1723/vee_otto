@@ -54,7 +54,10 @@ export class VAutoAgentWithDashboard extends VAutoAgent {
       featuresFound: [],
       featuresUpdated: [],
       errors: [],
-      processingTime: 0
+      processingTime: 0,
+      dealer: '',
+      age: '',
+      unmappedFeatures: []
     };
     
     const startTime = Date.now();

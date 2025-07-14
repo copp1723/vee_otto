@@ -12,6 +12,7 @@ import { Logger } from '../../core/utils/Logger';
 import { MailgunProvider } from '../../integrations/email/MailgunProvider';
 import { SMTPProvider } from '../../integrations/email/SMTPProvider';
 import * as process from 'process';
+import * as fuzz from 'fuzzball';
 
 export interface VAutoConfig extends AgentConfig {
   username: string;
@@ -27,6 +28,9 @@ export interface VehicleProcessingResult {
   featuresUpdated: string[];
   errors: string[];
   processingTime: number;
+  dealer: string;
+  age: string;
+  unmappedFeatures: string[];
 }
 
 export interface VAutoRunResult {
@@ -315,7 +319,7 @@ export class VAutoAgent extends BaseAgent {
     
     // Click View Inventory
     await reliableClick(this.page, vAutoSelectors.inventory.viewInventoryLink, 'View Inventory Link');
-    await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
+    await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
     await this.takeScreenshot('vauto-inventory-page');
   }
   
@@ -339,9 +343,63 @@ export class VAutoAgent extends BaseAgent {
     
     // Apply filters
     await reliableClick(this.page, vAutoSelectors.inventory.applyFilter, 'Apply Filter Button');
-    await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
+    await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
     
     this.logger.info('Inventory filters applied');
+  }
+  
+  async navigateViaMenuAndApplySavedFilter(): Promise<void> {
+    if (!this.page) throw new Error('Page not initialized');
+
+    this.logger.info('Navigating via menu hover and applying saved Recent Inventory filter');
+
+    try {
+      // Step 1: Hover over Pricing menu
+      const pricingSelector = { css: '#mainMenu > li:nth-child(3)', xpath: '//*[@id="mainMenu"]/li[3]' };
+      const pricingElem = await this.browser.findElement(pricingSelector);
+      if (!pricingElem) throw new Error('Pricing menu not found');
+
+      await this.browser.waitForElementStability(pricingSelector, { checks: 3, interval: 200 });
+      await pricingElem.hover({ timeout: 5000 });
+      await this.page.waitForTimeout(500); // Allow submenu load
+      this.logger.debug('Hovered Pricing menu');
+      await this.takeScreenshot('after-pricing-hover');
+
+      // Step 2: Click Inventory from submenu
+      const inventorySelector = { xpath: '//*[@id="m_16-menu"]/div/div/h3[1]/a' };
+      await this.browser.reliableClick(inventorySelector, { retries: 2, delay: 1000 });
+      await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
+      this.logger.debug('Clicked Inventory');
+      await this.takeScreenshot('after-inventory-click');
+
+      // Step 3: Click Saved Filters
+      const savedFiltersSelector = { xpath: '//*[@id="ext-gen77"]' };
+      await this.browser.reliableClick(savedFiltersSelector);
+      await this.page.waitForTimeout(1000); // Allow menu expansion
+      this.logger.debug('Accessed Saved Filters');
+
+      // Step 4: Select Recent Inventory Filter
+      const recentFilterSelector = { xpath: '//*[@id="ext-gen514"]' };
+      await this.browser.reliableClick(recentFilterSelector);
+      await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
+      this.logger.debug('Applied Recent Inventory Filter');
+      await this.takeScreenshot('after-filter-apply');
+
+      // Verify navigation success with fallback
+      const currentUrl = this.page.url();
+      if (!currentUrl.includes('inventory')) {
+        this.logger.warn('Navigation might have failed - falling back to direct inventory');
+        await this.navigateToInventory();
+      } else {
+        this.logger.info('Navigation successful - ready to process inventory');
+      }
+
+    } catch (error) {
+      this.logger.error('Menu navigation failed', error);
+      if (this.config.screenshotOnError) await this.takeScreenshot('nav-error');
+      await this.navigateToInventory(); // Fallback
+      throw error;
+    }
   }
   
   async processInventory(): Promise<VAutoRunResult> {
@@ -351,8 +409,7 @@ export class VAutoAgent extends BaseAgent {
     this.logger.info('Starting inventory processing');
     
     try {
-      await this.navigateToInventory();
-      await this.applyInventoryFilters();
+      await this.navigateViaMenuAndApplySavedFilter();
       
       let pageNumber = 1;
       let hasNextPage = true;
@@ -372,12 +429,17 @@ export class VAutoAgent extends BaseAgent {
             // Re-query elements after navigation
             const vehicleLinks = await this.page.$$(vAutoSelectors.inventory.vehicleRows);
             if (i < vehicleLinks.length) {
+              const rowHandle = await vehicleLinks[i].evaluateHandle(el => el.closest('tr'));
+              const dealer = await this.page.evaluate(tr => tr?.querySelector('td:nth-child(3) > div')?.textContent?.trim() || '', rowHandle) as string;
+              const age = await this.page.evaluate(tr => tr?.querySelector('td:nth-child(5) > div')?.textContent?.trim() || '', rowHandle) as string;
+              // Add more columns as needed
+
               await vehicleLinks[i].click();
               await this.processVehicle();
               
               // Navigate back to inventory
               await this.page.goBack();
-              await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
+              await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
             }
           } catch (error) {
             this.logger.error(`Failed to process vehicle ${i + 1} on page ${pageNumber}`, error);
@@ -389,7 +451,7 @@ export class VAutoAgent extends BaseAgent {
         hasNextPage = await this.hasNextPage();
         if (hasNextPage) {
           await reliableClick(this.page, vAutoSelectors.inventory.nextPageButton, 'Next Page Button');
-          await waitForLoadingToComplete(this.page, Object.values(vAutoSelectors.loading));
+          await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
           pageNumber++;
         }
       }
@@ -416,7 +478,10 @@ export class VAutoAgent extends BaseAgent {
       featuresFound: [],
       featuresUpdated: [],
       errors: [],
-      processingTime: 0
+      processingTime: 0,
+      dealer: '',
+      age: '',
+      unmappedFeatures: []
     };
     
     try {
@@ -444,10 +509,17 @@ export class VAutoAgent extends BaseAgent {
       // Update checkboxes based on features
       const updatedFeatures = await this.updateFeatureCheckboxes(features);
       result.featuresUpdated = updatedFeatures;
+
+      // Add to VehicleProcessingResult: unmappedFeatures: string[] = [];
+      const unmapped = result.featuresFound.filter(f => !updatedFeatures.some(u => fuzz.ratio(f, u) > 90));
+      result.unmappedFeatures = unmapped;
+      this.logger.info(`Unmapped features: ${unmapped.join(', ')}`);
       
       // Save changes
-      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.saveButton, 'Save Button');
-      await this.page!.waitForTimeout(2000); // Wait for save to complete
+      const saveSelector = { xpath: '//*[@id="ext-gen58"]', css: '#ext-gen58' };
+      await this.browser.reliableClick(saveSelector);
+      await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
+      this.logger.info('Vehicle changes saved');
       
       result.processed = true;
       this.logger.info(`Successfully processed vehicle ${result.vin}`);
@@ -537,10 +609,13 @@ export class VAutoAgent extends BaseAgent {
       for (const label of possibleLabels) {
         // Try exact match first
         if (allCheckboxLabels.has(label)) {
-          const updated = await this.updateSingleCheckbox(label, true);
-          if (updated) {
-            updatedFeatures.push(label);
-            break; // Move to next feature
+          const score = fuzz.ratio(feature, label);
+          if (score > 90) {
+            const updated = await this.updateSingleCheckbox(label, true);
+            if (updated) {
+              updatedFeatures.push(label);
+              break; // Move to next feature
+            }
           }
         }
       }
@@ -548,6 +623,11 @@ export class VAutoAgent extends BaseAgent {
     
     // Also uncheck features that weren't found (optional - depends on requirements)
     // This part would need more sophisticated logic to avoid unchecking everything
+    for (const label of allCheckboxLabels) {
+      if (!foundFeatures.includes(label)) {
+        await this.updateSingleCheckbox(label, false);
+      }
+    }
     
     return updatedFeatures;
   }
