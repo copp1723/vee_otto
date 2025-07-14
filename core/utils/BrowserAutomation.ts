@@ -14,6 +14,9 @@ export interface BrowserConfig {
   viewport?: { width: number; height: number };
   userAgent?: string;
   extraHTTPHeaders?: Record<string, string>;
+  args?: string[];
+  retries?: number;
+  validateOnStart?: boolean;
 }
 
 export interface ElementSelector {
@@ -38,42 +41,114 @@ export class BrowserAutomation {
 
   constructor(config: BrowserConfig = {}) {
     this.config = {
-      headless: false,
-      slowMo: 100,
+      headless: process.env.NODE_ENV === 'production',
+      slowMo: process.env.NODE_ENV === 'production' ? 0 : 100,
       timeout: 30000,
       viewport: { width: 1920, height: 1080 },
+      args: process.env.NODE_ENV === 'production' 
+        ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        : [],
+      retries: 3,
+      validateOnStart: true,
       ...config
     };
   }
 
   async initialize(): Promise<void> {
-    logger.info('Launching browser...', { headless: this.config.headless });
-
-    this.browser = await chromium.launch({
+    logger.info('Initializing browser automation...', { 
       headless: this.config.headless,
-      slowMo: this.config.slowMo
+      environment: process.env.NODE_ENV,
+      args: this.config.args
     });
 
-    const contextOptions: any = {
-      viewport: this.config.viewport
-    };
-
-    if (this.config.userAgent) {
-      contextOptions.userAgent = this.config.userAgent;
+    // Validate browser installation if enabled
+    if (this.config.validateOnStart) {
+      await this.validateBrowserInstallation();
     }
 
-    if (this.config.extraHTTPHeaders) {
-      contextOptions.extraHTTPHeaders = this.config.extraHTTPHeaders;
-    }
-
-    this.context = await this.browser.newContext(contextOptions);
-    this.page = await this.context.newPage();
-
-    if (this.config.timeout) {
-      this.page.setDefaultTimeout(this.config.timeout);
-    }
+    // Launch browser with retry logic
+    await this.withRetry(async () => {
+      await this.launchBrowser();
+    }, { 
+      retries: this.config.retries || 3,
+      minTimeout: 2000,
+      maxTimeout: 10000
+    });
 
     logger.info('Browser initialized successfully');
+  }
+
+  private async validateBrowserInstallation(): Promise<void> {
+    try {
+      logger.info('Validating browser installation...');
+      
+      // Check if browser executable exists
+      const executablePath = chromium.executablePath();
+      logger.info('Browser executable path:', { path: executablePath });
+      
+      if (!fs.existsSync(executablePath)) {
+        throw new Error(`Browser executable not found at: ${executablePath}`);
+      }
+
+      // Test basic browser launch
+      const testBrowser = await chromium.launch({
+        headless: true,
+        args: this.config.args
+      });
+      
+      await testBrowser.close();
+      logger.info('Browser validation completed successfully');
+      
+    } catch (error) {
+      logger.error('Browser validation failed:', error);
+      throw new Error(`Browser validation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private async launchBrowser(): Promise<void> {
+    try {
+      logger.info('Launching browser...', { headless: this.config.headless });
+
+      this.browser = await chromium.launch({
+        headless: this.config.headless,
+        slowMo: this.config.slowMo,
+        args: this.config.args
+      });
+
+      const contextOptions: any = {
+        viewport: this.config.viewport
+      };
+
+      if (this.config.userAgent) {
+        contextOptions.userAgent = this.config.userAgent;
+      }
+
+      if (this.config.extraHTTPHeaders) {
+        contextOptions.extraHTTPHeaders = this.config.extraHTTPHeaders;
+      }
+
+      this.context = await this.browser.newContext(contextOptions);
+      this.page = await this.context.newPage();
+
+      if (this.config.timeout) {
+        this.page.setDefaultTimeout(this.config.timeout);
+      }
+
+      // Test page functionality
+      await this.page.evaluate(() => navigator.userAgent);
+      
+      logger.info('Browser launched and context created successfully');
+      
+    } catch (error) {
+      // Clean up any partial initialization
+      if (this.browser) {
+        await this.browser.close().catch(() => {});
+        this.browser = null;
+      }
+      
+      logger.error('Browser launch failed:', error);
+      throw new Error(`Browser launch failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   get currentPage(): Page {
@@ -429,16 +504,21 @@ export class BrowserAutomation {
 
   async cleanup(): Promise<void> {
     try {
+      logger.info('Starting browser cleanup...');
+      
       if (this.page) {
-        await this.page.close();
+        await this.page.close().catch(err => logger.warn('Failed to close page', err));
+        this.page = null;
       }
       
       if (this.context) {
-        await this.context.close();
+        await this.context.close().catch(err => logger.warn('Failed to close context', err));
+        this.context = null;
       }
       
       if (this.browser) {
-        await this.browser.close();
+        await this.browser.close().catch(err => logger.warn('Failed to close browser', err));
+        this.browser = null;
       }
       
       // Force GC if available
@@ -446,9 +526,38 @@ export class BrowserAutomation {
         global.gc();
       }
       
-      logger.info('Browser cleanup completed');
+      logger.info('Browser cleanup completed successfully');
     } catch (error) {
-      logger.error('Failed to cleanup browser', { error });
+      logger.error('Browser cleanup failed', { error });
+      // Reset all references to prevent memory leaks
+      this.page = null;
+      this.context = null;
+      this.browser = null;
+    }
+  }
+
+  // Add method to check browser health
+  async isHealthy(): Promise<boolean> {
+    try {
+      if (!this.browser || !this.page) {
+        return false;
+      }
+      
+      // Test basic functionality
+      await this.page.evaluate(() => true);
+      return true;
+    } catch (error) {
+      logger.warn('Browser health check failed', error);
+      return false;
+    }
+  }
+
+  // Add method to restart browser if needed
+  async restartIfNeeded(): Promise<void> {
+    if (!(await this.isHealthy())) {
+      logger.info('Browser unhealthy, restarting...');
+      await this.cleanup();
+      await this.initialize();
     }
   }
 

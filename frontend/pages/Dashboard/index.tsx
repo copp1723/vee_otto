@@ -448,11 +448,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           </main>
         </div>
       ) : activeTab === 'mockup' ? (
-        <div className="mockup-tab">
+        <div className="mockup-tab h-[calc(100vh-120px)]">
           <iframe
             src="/test-mockup/index.html"
             title="vAuto Test Mockup"
-            className="w-full h-[800px] border"
+            className="w-full h-full border-0"
           />
         </div>
       ) : activeTab === 'process-explorer' ? (

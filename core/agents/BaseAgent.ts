@@ -59,21 +59,41 @@ export abstract class BaseAgent {
   }
 
   async initialize(): Promise<void> {
-    this.logger.info('Initializing agent...');
+    this.logger.info('Initializing agent...', { configName: this.config.configName });
     
-    // Load configuration
-    const fullConfig = await this.configManager.loadConfig(this.config.configName!);
-    
-    // Initialize browser
-    await this.browser.initialize();
-    
-    // Initialize email provider if configured
-    if (fullConfig.email) {
-      this.emailProvider = EmailFactory.create(fullConfig.email);
-      await this.emailProvider.initialize();
+    try {
+      // Load configuration
+      const fullConfig = await this.configManager.loadConfig(this.config.configName!);
+      this.logger.info('Configuration loaded successfully');
+      
+      // Initialize browser with enhanced error handling
+      this.logger.info('Initializing browser automation...');
+      await this.browser.initialize();
+      
+      // Verify browser is healthy after initialization
+      if (!(await this.browser.isHealthy())) {
+        throw new Error('Browser initialization completed but health check failed');
+      }
+      
+      // Initialize email provider if configured
+      if (fullConfig.email) {
+        this.logger.info('Initializing email provider...');
+        this.emailProvider = EmailFactory.create(fullConfig.email);
+        await this.emailProvider.initialize();
+      }
+      
+      this.logger.info('Agent initialized successfully');
+      
+    } catch (error) {
+      this.logger.error('Agent initialization failed', { error: error instanceof Error ? error.message : String(error) });
+      
+      // Clean up any partial initialization
+      await this.cleanup().catch(cleanupError => {
+        this.logger.warn('Cleanup during initialization failure also failed', cleanupError);
+      });
+      
+      throw new Error(`Agent initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
-    this.logger.info('Agent initialized successfully');
   }
 
   async login(loginConfig: LoginConfig): Promise<boolean> {

@@ -1,4 +1,72 @@
 services:
+  # Native deployment with enhanced browser support
+  - type: web
+    name: vee-otto-native
+    env: node
+    buildCommand: bash scripts/render-build.sh
+    startCommand: bash dist/startup.sh
+    plan: standard
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: HEADLESS
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+      - key: MAILGUN_API_KEY
+        sync: false
+      - key: MAILGUN_DOMAIN
+        value: veeotto.ai
+      - key: MAX_VEHICLES_TO_PROCESS
+        value: "1"
+      - key: NODE_ENV
+        value: production
+      - key: OCR_ENABLED
+        value: "true"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_DEFAULT_MODEL
+        value: anthropic/claude-3.5-sonnet
+      - key: PERFORMANCE_MONITORING
+        value: "true"
+      - key: READ_ONLY_MODE
+        value: "true"
+      - key: SCREENSHOT_ON_FAILURE
+        value: "true"
+      - key: TARGET_URL
+        value: https://app.vauto.com/inventory
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        value: "+13137658345"
+      - key: TWO_FACTOR_METHOD
+        value: sms
+      - key: TWO_FACTOR_PHONE
+        value: "+13137658345"
+      - key: VAUTO_USERNAME
+        sync: false
+      - key: VAUTO_PASSWORD
+        sync: false
+      - key: SLOW_MO
+        value: "1000"
+      - key: PUBLIC_URL
+        fromService:
+          type: web
+          name: vee-otto-native
+          property: hostUrl
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/.cache/ms-playwright
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "false"
+
+  # Docker deployment with VNC support (existing)
   - type: web
     name: vee-otto-visual
     env: docker
