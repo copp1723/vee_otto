@@ -135,6 +135,8 @@ npm run build
 
 # Build frontend dashboard
 echo "🎨 Building frontend dashboard..."
+# Ensure we're in the project root for the dashboard build
+cd /opt/render/project || cd "$(dirname "$0")/.."
 npm run dashboard:build
 echo "Dashboard build completed, checking output..."
 pwd
