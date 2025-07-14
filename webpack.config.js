@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
 
 module.exports = (env, argv) => {
@@ -75,14 +76,30 @@ module.exports = (env, argv) => {
         template: './frontend/public/index.html',
         title: 'vAuto Intelligence Suite',
       }),
+      new CopyWebpackPlugin({
+        patterns: [
+          { 
+            from: 'frontend/public',
+            to: '.', 
+            globOptions: {
+              ignore: ['**/index.html']
+            }
+          }
+        ]
+      }),
       ...(isProduction ? [new MiniCssExtractPlugin({
         filename: '[name].[contenthash].css',
       })] : []),
     ],
     devServer: {
-      static: {
-        directory: path.join(__dirname, 'dist/dashboard'),
-      },
+      static: [
+        {
+          directory: path.join(__dirname, 'dist/dashboard'),
+        },
+        {
+          directory: path.join(__dirname, 'frontend/public'),
+        }
+      ],
       compress: true,
       port: 8080,
       historyApiFallback: true,
