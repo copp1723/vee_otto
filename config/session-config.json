@@ -1,0 +1,36 @@
+{
+  "keepAlive": {
+    "enabled": true,
+    "intervalMinutes": 45,
+    "maxDurationHours": 8,
+    "mouseWiggleDistance": 5,
+    "sessionTimeoutSelectors": [
+      "div:has-text('Session expired')",
+      "div:has-text('Your session has timed out')",
+      "div:has-text('Please sign in again')",
+      ".session-timeout-modal",
+      ".login-required-modal"
+    ],
+    "loginRequiredSelectors": [
+      "input[name='username']",
+      "input[name='password']",
+      "#login-form",
+      ".signin-form",
+      "button:has-text('Sign In')"
+    ]
+  },
+  "vauto": {
+    "sessionTimeoutSelectors": [
+      "div:has-text('Session expired')",
+      "div:has-text('Your session has timed out')",
+      "h1:has-text('Sign In')",
+      ".auth-form"
+    ],
+    "loginRequiredSelectors": [
+      "#userName",
+      "#password",
+      "button:has-text('Next')",
+      ".signin-container"
+    ]
+  }
+}

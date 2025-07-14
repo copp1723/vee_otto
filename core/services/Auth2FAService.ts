@@ -245,6 +245,20 @@ export class Auth2FAService {
     const enteredValue = await inputElement.inputValue();
     this.logger.info(`Verified entered value: ${enteredValue}`);
     
+    // CRITICAL: Validate the entered code matches what we intended
+    if (enteredValue !== code) {
+      this.logger.error(`❌ CODE MISMATCH! Intended: "${code}", Actually entered: "${enteredValue}"`);
+      throw new Error(`Code entry failed - intended "${code}" but entered "${enteredValue}"`);
+    }
+    
+    // Additional validation - ensure it's exactly 6 digits
+    if (!/^\d{6}$/.test(enteredValue)) {
+      this.logger.error(`❌ INVALID CODE FORMAT! Expected 6 digits, got: "${enteredValue}"`);
+      throw new Error(`Invalid code format entered: "${enteredValue}"`);
+    }
+    
+    this.logger.info(`✅ Code validation passed: "${code}" entered correctly`);
+    
     // Take screenshot after entering code
     await this.takeScreenshot(page, '2fa-after-code-entry');
     

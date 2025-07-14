@@ -1,7 +1,7 @@
 // @ts-ignore - fuzzball doesn't have types
 import * as fuzz from 'fuzzball';
 
-// Comprehensive feature mapping between window sticker text and vAuto checkboxes
+// Comprehensive feature mapping between window sticker text and vAuto checkbox labels
 export const featureMap: Record<string, string[]> = {
   // Safety Features
   'Airbags': ['Front Airbags', 'Side Airbags', 'Curtain Airbags', 'Airbag'],
@@ -18,163 +18,251 @@ export const featureMap: Record<string, string[]> = {
   'Auto-Dimming Rearview Mirror': ['Auto-Dimming Mirror', 'Electrochromic Mirror', 'Auto Dimming Rearview Mirror'],
   'Power Steering': ['Power Steering', 'Electric Power Steering', 'EPS'],
   'Cruise Control': ['Cruise Control', 'Speed Control'],
-  'Adaptive Cruise Control': ['Adaptive Cruise Control'],
-  'Blind Spot Monitoring System': ['Blind Spot Monitor'],
-  'Heated Front Seats': ['Heated Seats'],
-  'Apple CarPlay Integration': ['Apple CarPlay/Android Auto'],
-  'Backup Camera with Guidelines': ['Backup Camera'],
-  'Sunroof/Moonroof Package': ['Sunroof/Moonroof'],
-  'Navigation System w/ Voice': ['Navigation'],
-  'Premium Audio Surround': ['Premium Audio'],
-  'Keyless Entry/Start': ['Keyless Entry'],
-  'Turbocharged 2.0L Engine': ['Turbocharged'],
-  'Keyless Entry': ['Keyless Entry', 'Remote Keyless Entry', 'RKE'],
-  'Push Button Start': ['Push Button Start', 'Engine Start Button', 'Push Start'],
-  'Remote Start': ['Remote Engine Start', 'Remote Start', 'Remote Starter'],
+  'Adaptive Cruise Control': ['Adaptive Cruise Control', 'ACC', 'Dynamic Cruise Control'],
+  'Blind Spot Monitoring System': ['Blind Spot Monitor', 'BSM'],
+  'Heated Front Seats': ['Heated Seats', 'Heated Front Seats'],
+  'Heated Rear Seats': ['Heated Rear Seats'],
+  'Ventilated Seats': ['Ventilated Seats', 'Cooled Seats', 'Air Conditioned Seats'],
+  'Apple CarPlay Integration': ['Apple CarPlay/Android Auto', 'Apple CarPlay', 'CarPlay'],
+  'Android Auto': ['Android Auto', 'Apple CarPlay/Android Auto'],
+  'Backup Camera with Guidelines': ['Backup Camera', 'Rear View Camera'],
+  'Sunroof/Moonroof Package': ['Sunroof/Moonroof', 'Sunroof', 'Moonroof', 'Panoramic Roof'],
+  'Navigation System w/ Voice': ['Navigation', 'GPS Navigation', 'Nav System'],
+  'Premium Audio Surround': ['Premium Audio', 'Surround Sound', 'Premium Sound System'],
+  'Keyless Entry/Start': ['Keyless Entry', 'Push Button Start', 'Smart Key'],
+  'Remote Start': ['Remote Start', 'Remote Engine Start'],
   
-  // Seating & Interior
-  'Leather Seats': ['Leather', 'Leather Trimmed', 'Leather Appointed'],
-  'Heated Seats': ['Heated Seats', 'Seat Heater', 'Heated Front Seats'],
-  'Cooled Seats': ['Ventilated Seats', 'Cooled Seats', 'Air Conditioned Seats'],
-  'Power Seats': ['Power Driver Seat', 'Power Adjustable Seats', '8-way Power'],
-  'Memory Seats': ['Memory Seat', 'Driver Memory', 'Seat Memory'],
-  'Third Row Seating': ['3rd Row', 'Third Row', '7-Passenger', '8-Passenger'],
+  // Engine/Performance
+  'Turbocharged 2.0L Engine': ['Turbocharged', 'Turbo'],
+  '6.7L I-6 Diesel Turbocharged': ['Turbocharged', 'Diesel Engine', 'Turbo Diesel'],
+  'All Wheel Drive': ['AWD', 'All-Wheel Drive', '4WD', 'Four Wheel Drive'],
+  'Four Wheel Drive': ['4WD', 'Four-Wheel Drive', '4x4'],
   
-  // Technology & Entertainment
-  'Navigation System': ['Navigation', 'GPS Navigation', 'Nav System'],
-  'Bluetooth': ['Bluetooth', 'Hands-Free', 'Wireless Phone Connectivity'],
-  'Apple CarPlay': ['Apple CarPlay', 'CarPlay'],
-  'Android Auto': ['Android Auto'],
-  'Premium Audio': ['Premium Sound', 'Bose', 'Harman Kardon', 'JBL', 'Mark Levinson'],
-  'Satellite Radio': ['SiriusXM', 'Satellite Radio', 'XM Radio'],
-  'Wi-Fi Hotspot': ['Wi-Fi', 'Hotspot', '4G LTE'],
+  // Interior Features
+  'Leather Seats': ['Leather', 'Leather Trim', 'Leather Upholstery'],
+  'Power Seats': ['Power Seats', 'Power Adjustable Seats', '8-Way Power Seats'],
+  'Memory Seats': ['Memory Seats', 'Driver Memory', 'Memory Settings'],
+  'Third Row Seats': ['Third Row', '3rd Row Seats', '7-Passenger', '8-Passenger'],
   
-  // Exterior
-  'Sunroof': ['Sunroof', 'Moonroof', 'Panoramic Roof'],
-  'Roof Rails': ['Roof Rails', 'Roof Rack', 'Cross Bars'],
-  'Tow Package': ['Towing Package', 'Trailer Hitch', 'Tow Prep'],
-  'Running Boards': ['Running Boards', 'Side Steps', 'Nerf Bars'],
-  'Bed Liner': ['Bedliner', 'Bed Liner', 'Spray-in Bedliner'],
-  
-  // Wheels & Tires
-  'Alloy Wheels': ['Alloy Wheels', 'Aluminum Wheels', 'Alloy Rims'],
-  'Chrome Wheels': ['Chrome Wheels', 'Chrome Rims'],
-  'All-Season Tires': ['All-Season Tires', 'All Season'],
-  'Performance Tires': ['Performance Tires', 'Summer Tires', 'Sport Tires'],
-  
-  // Powertrain
-  '4WD': ['4WD', 'Four Wheel Drive', '4x4'],
-  'AWD': ['AWD', 'All Wheel Drive', 'All-Wheel Drive'],
-  'Turbo': ['Turbo', 'Turbocharged', 'Turbocharger'],
-  'Supercharged': ['Supercharged', 'Supercharger'],
-  'Hybrid': ['Hybrid', 'Hybrid System', 'Hybrid Synergy'],
-  'Electric': ['Electric', 'EV', 'Electric Vehicle', 'Battery Electric'],
-  
-  // Lighting
-  'LED Headlights': ['LED Headlights', 'LED Headlamps', 'LED Lighting'],
-  'HID Headlights': ['HID', 'Xenon', 'High Intensity Discharge'],
+  // Exterior Features
   'Fog Lights': ['Fog Lights', 'Fog Lamps'],
-  'Daytime Running Lights': ['DRL', 'Daytime Running Lights', 'Daytime Running Lamps']
+  'LED Headlights': ['LED Headlights', 'LED Lights'],
+  'Alloy Wheels': ['Alloy Wheels', 'Aluminum Wheels', 'Chrome Wheels'],
+  'Running Boards': ['Running Boards', 'Side Steps'],
+  'Tow Package': ['Towing Package', 'Trailer Hitch', 'Tow Hitch'],
+  
+  // Technology
+  'Bluetooth': ['Bluetooth', 'Bluetooth Connectivity', 'Hands-Free'],
+  'USB Ports': ['USB Ports', 'USB Charging', 'USB'],
+  'Wireless Charging': ['Wireless Charging', 'Qi Charging'],
+  'Head-Up Display': ['Head-Up Display', 'HUD'],
+  'Parking Sensors': ['Parking Sensors', 'Park Assist', 'Parking Aid'],
+  '360 Camera': ['360 Camera', 'Surround View Camera', 'Birds Eye View']
 };
 
-// Fuzzy matching configuration
-const FUZZY_MATCH_THRESHOLD = 85; // 85% similarity required
+// Reverse mapping for checkbox label to feature names
+export const checkboxToFeatureMap: Record<string, string[]> = {};
+
+// Build reverse mapping
+Object.entries(featureMap).forEach(([feature, checkboxLabels]) => {
+  checkboxLabels.forEach(label => {
+    if (!checkboxToFeatureMap[label]) {
+      checkboxToFeatureMap[label] = [];
+    }
+    checkboxToFeatureMap[label].push(feature);
+  });
+});
 
 /**
- * Match a feature from window sticker text to a checkbox label
- * @param stickerText - The text found in the window sticker
- * @param checkboxLabel - The label of the checkbox in vAuto
- * @returns boolean indicating if they match
+ * Interface for feature matching result
  */
-export function matchFeature(stickerText: string, checkboxLabel: string): boolean {
-  // First try exact match (case-insensitive)
-  if (stickerText.toLowerCase() === checkboxLabel.toLowerCase()) {
-    return true;
-  }
-  
-  // Then try fuzzy matching
-  const ratio = fuzz.ratio(stickerText.toLowerCase(), checkboxLabel.toLowerCase());
-  return ratio >= FUZZY_MATCH_THRESHOLD;
+export interface FeatureMatch {
+  windowStickerFeature: string;
+  checkboxLabel: string;
+  confidence: number;
+  matched: boolean;
 }
 
 /**
- * Find all matching features in window sticker text
- * @param stickerText - The complete window sticker text
- * @returns Array of matched feature names
+ * Map window sticker features to checkbox labels using fuzzy matching
+ * @param windowStickerFeatures Array of features extracted from window sticker
+ * @param availableCheckboxes Array of available checkbox labels on the page
+ * @param threshold Minimum similarity score (0-100) for a match
+ * @returns Array of feature matches
  */
-export function findFeaturesInStickerText(stickerText: string): string[] {
-  const foundFeatures: string[] = [];
-  const stickerLower = stickerText.toLowerCase();
-  
-  for (const [feature, variations] of Object.entries(featureMap)) {
-    // Check if any variation of the feature exists in the sticker text
-    const hasFeature = variations.some(variation => {
-      const variationLower = variation.toLowerCase();
-      
-      // Try exact substring match first
-      if (stickerLower.includes(variationLower)) {
-        return true;
+export function mapFeaturesToCheckboxes(
+  windowStickerFeatures: string[],
+  availableCheckboxes: string[],
+  threshold: number = 90
+): FeatureMatch[] {
+  const matches: FeatureMatch[] = [];
+  const unmatchedFeatures: string[] = [];
+
+  for (const stickerFeature of windowStickerFeatures) {
+    let bestMatch: FeatureMatch | null = null;
+    let highestScore = 0;
+
+    // First, try direct mapping
+    const directMappings = featureMap[stickerFeature] || [];
+    for (const mapping of directMappings) {
+      const checkboxMatch = availableCheckboxes.find(cb => 
+        cb.toLowerCase() === mapping.toLowerCase()
+      );
+      if (checkboxMatch) {
+        bestMatch = {
+          windowStickerFeature: stickerFeature,
+          checkboxLabel: checkboxMatch,
+          confidence: 100,
+          matched: true
+        };
+        break;
       }
-      
-      // Try fuzzy matching on smaller chunks (split by common delimiters)
-      const stickerChunks = stickerText.split(/[,;\n•▪]/);
-      return stickerChunks.some(chunk => {
-        const ratio = fuzz.ratio(chunk.trim().toLowerCase(), variationLower);
-        return ratio >= FUZZY_MATCH_THRESHOLD;
+    }
+
+    // If no direct match, use fuzzy matching
+    if (!bestMatch) {
+      for (const checkbox of availableCheckboxes) {
+        // Try multiple fuzzy matching algorithms
+        const scores = [
+          fuzz.ratio(stickerFeature, checkbox),
+          fuzz.partial_ratio(stickerFeature, checkbox),
+          fuzz.token_set_ratio(stickerFeature, checkbox),
+          fuzz.token_sort_ratio(stickerFeature, checkbox)
+        ];
+        
+        const maxScore = Math.max(...scores);
+        
+        if (maxScore > highestScore && maxScore >= threshold) {
+          highestScore = maxScore;
+          bestMatch = {
+            windowStickerFeature: stickerFeature,
+            checkboxLabel: checkbox,
+            confidence: maxScore,
+            matched: true
+          };
+        }
+      }
+    }
+
+    if (bestMatch) {
+      matches.push(bestMatch);
+    } else {
+      unmatchedFeatures.push(stickerFeature);
+      matches.push({
+        windowStickerFeature: stickerFeature,
+        checkboxLabel: '',
+        confidence: 0,
+        matched: false
       });
-    });
+    }
+  }
+
+  // Log unmatched features for future mapping updates
+  if (unmatchedFeatures.length > 0) {
+    console.log('📝 Unmatched features for future mapping:', unmatchedFeatures);
+  }
+
+  return matches;
+}
+
+/**
+ * Determine which checkboxes should be checked based on window sticker
+ * @param windowStickerFeatures Features found in window sticker
+ * @param checkboxStates Current state of all checkboxes { label: string, checked: boolean, id: string }[]
+ * @returns Actions to take { id: string, label: string, shouldBeChecked: boolean, currentlyChecked: boolean }[]
+ */
+export function determineCheckboxActions(
+  windowStickerFeatures: string[],
+  checkboxStates: Array<{ label: string; checked: boolean; id: string }>
+): Array<{ id: string; label: string; shouldBeChecked: boolean; currentlyChecked: boolean; action: 'check' | 'uncheck' | 'none' }> {
+  const actions = [];
+  const availableLabels = checkboxStates.map(cb => cb.label);
+  const featureMatches = mapFeaturesToCheckboxes(windowStickerFeatures, availableLabels);
+  
+  // Create a set of matched checkbox labels for quick lookup
+  const matchedCheckboxLabels = new Set(
+    featureMatches
+      .filter(m => m.matched)
+      .map(m => m.checkboxLabel.toLowerCase())
+  );
+
+  // Go through each checkbox and determine action
+  for (const checkbox of checkboxStates) {
+    const labelLower = checkbox.label.toLowerCase();
+    const isMatched = matchedCheckboxLabels.has(labelLower);
     
-    if (hasFeature) {
-      foundFeatures.push(feature);
-    }
-  }
-  
-  return foundFeatures;
-}
-
-/**
- * Get checkbox label variations for a feature
- * @param feature - The feature name
- * @returns Array of possible checkbox labels
- */
-export function getCheckboxLabels(feature: string): string[] {
-  return featureMap[feature] || [feature];
-}
-
-/**
- * Parse window sticker text and extract structured features
- * This is a more advanced parser that can handle different sticker formats
- */
-export function parseWindowStickerText(stickerText: string): {
-  features: string[];
-  rawSections: { [key: string]: string };
-} {
-  const features = findFeaturesInStickerText(stickerText);
-  
-  // Try to extract sections (many window stickers have sections like "STANDARD EQUIPMENT", "OPTIONS", etc.)
-  const rawSections: { [key: string]: string } = {};
-  const sectionRegex = /^([A-Z\s]+):?\s*$/gm;
-  const lines = stickerText.split('\n');
-  
-  let currentSection = 'GENERAL';
-  let sectionContent: string[] = [];
-  
-  for (const line of lines) {
-    const sectionMatch = line.match(sectionRegex);
-    if (sectionMatch) {
-      if (sectionContent.length > 0) {
-        rawSections[currentSection] = sectionContent.join('\n');
+    let action: 'check' | 'uncheck' | 'none' = 'none';
+    
+    if (isMatched && !checkbox.checked) {
+      action = 'check';
+    } else if (!isMatched && checkbox.checked) {
+      // Only uncheck if we have high confidence this should not be checked
+      // (i.e., we have good coverage of window sticker features)
+      if (windowStickerFeatures.length > 10) { // Arbitrary threshold for good coverage
+        action = 'uncheck';
       }
-      currentSection = sectionMatch[1].trim();
-      sectionContent = [];
-    } else if (line.trim()) {
-      sectionContent.push(line);
     }
+    
+    actions.push({
+      id: checkbox.id,
+      label: checkbox.label,
+      shouldBeChecked: isMatched,
+      currentlyChecked: checkbox.checked,
+      action
+    });
   }
   
-  if (sectionContent.length > 0) {
-    rawSections[currentSection] = sectionContent.join('\n');
-  }
+  return actions;
+}
+
+/**
+ * Generate a summary report of feature updates
+ */
+export interface FeatureUpdateReport {
+  vin: string;
+  timestamp: Date;
+  totalFeatures: number;
+  matchedFeatures: number;
+  unmatchedFeatures: number;
+  checkboxesUpdated: number;
+  checkboxesChecked: number;
+  checkboxesUnchecked: number;
+  errors: string[];
+  details: {
+    matched: FeatureMatch[];
+    unmatched: string[];
+    actions: Array<{ label: string; action: string }>;
+  };
+}
+
+export function generateFeatureReport(
+  vin: string,
+  windowStickerFeatures: string[],
+  featureMatches: FeatureMatch[],
+  checkboxActions: Array<{ label: string; action: 'check' | 'uncheck' | 'none' }>,
+  errors: string[] = []
+): FeatureUpdateReport {
+  const matched = featureMatches.filter(m => m.matched);
+  const unmatched = featureMatches.filter(m => !m.matched).map(m => m.windowStickerFeature);
+  const checked = checkboxActions.filter(a => a.action === 'check');
+  const unchecked = checkboxActions.filter(a => a.action === 'uncheck');
   
-  return { features, rawSections };
+  return {
+    vin,
+    timestamp: new Date(),
+    totalFeatures: windowStickerFeatures.length,
+    matchedFeatures: matched.length,
+    unmatchedFeatures: unmatched.length,
+    checkboxesUpdated: checked.length + unchecked.length,
+    checkboxesChecked: checked.length,
+    checkboxesUnchecked: unchecked.length,
+    errors,
+    details: {
+      matched,
+      unmatched,
+      actions: checkboxActions
+        .filter(a => a.action !== 'none')
+        .map(a => ({ label: a.label, action: a.action }))
+    }
+  };
 }

@@ -8,7 +8,7 @@ async function updateTwilioWebhookLocal() {
   // Load environment variables
   require('dotenv').config();
   
-  const localUrl = 'http://localhost:3000';
+  const localUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
   const webhookUrl = `${localUrl}/webhooks/twilio/sms`;
   
   // Check environment variables

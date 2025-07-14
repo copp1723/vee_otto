@@ -13,8 +13,13 @@ async function verifySMSSystem() {
     console.log('✅ Render deployment is live and responding');
     console.log(`   Response: ${JSON.stringify(response.data)}`);
   } catch (error) {
-    console.log('❌ Render deployment not accessible:', error.message);
-    return;
+    if (error.response && error.response.status === 404) {
+      console.log('✅ Render deployment is live (2FA endpoint returned expected 404 - no codes)');
+      console.log(`   Response: ${JSON.stringify(error.response.data)}`);
+    } else {
+      console.log('❌ Render deployment not accessible:', error.message);
+      return;
+    }
   }
   
   console.log('\n2. Testing SMS webhook endpoint...');

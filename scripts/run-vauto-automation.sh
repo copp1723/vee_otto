@@ -42,11 +42,7 @@ cleanup() {
         wait $SERVER_PID 2>/dev/null || true
     fi
     
-    if [ ! -z "$AUTO_INJECT_PID" ] && kill -0 $AUTO_INJECT_PID 2>/dev/null; then
-        print_status "Stopping auto-inject monitor (PID: $AUTO_INJECT_PID)..."
-        kill $AUTO_INJECT_PID 2>/dev/null || true
-        wait $AUTO_INJECT_PID 2>/dev/null || true
-    fi
+    # Auto-inject monitor removed - 2FA now handled by Auth2FAService
     
     # Kill any remaining background jobs
     jobs -p | xargs -r kill 2>/dev/null || true
@@ -115,7 +111,10 @@ export LOG_LEVEL=info
 export MAX_VEHICLES_TO_PROCESS=1
 export ENABLE_2FA=true
 export TWO_FACTOR_METHOD=sms
-export PUBLIC_URL=http://localhost:3000
+# Don't override PUBLIC_URL if it's already set in .env
+if [ -z "$PUBLIC_URL" ]; then
+    export PUBLIC_URL=http://localhost:3000
+fi
 export PORT=3000
 
 # CRITICAL: Disable dashboard integration to prevent port conflict
@@ -125,68 +124,52 @@ export DASHBOARD_INTEGRATION=false
 unset REPORT_EMAILS
 
 echo ""
-print_status "Step 1: Starting local server..."
+print_status "Step 1: Checking local server..."
 
-# Start the server in background
-npm run server:dev &
-SERVER_PID=$!
-
-print_status "Server starting (PID: $SERVER_PID)..."
-
-# Wait for server to be ready
-print_status "Waiting for server to be ready..."
-for i in {1..30}; do
-    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
-        print_success "Server is ready!"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        print_error "Server failed to start within 30 seconds"
-        exit 1
-    fi
-    sleep 1
-done
-
-# Start ngrok if not running
-if ! pgrep -f 'ngrok http 3000' > /dev/null; then
-    ngrok http 3000 &> ngrok.log &
-    NGROK_PID=$!
-    sleep 2
+# Check if server is already running
+if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+    print_success "Server is already running!"
+    SERVER_PID=""  # Don't manage existing server
+else
+    print_status "Starting local server..."
+    # Start the server in background
+    npm run server:dev &
+    SERVER_PID=$!
+    
+    print_status "Server starting (PID: $SERVER_PID)..."
+    
+    # Wait for server to be ready
+    print_status "Waiting for server to be ready..."
+    for i in {1..30}; do
+        if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+            print_success "Server is ready!"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            print_error "Server failed to start within 30 seconds"
+            exit 1
+        fi
+        sleep 1
+    done
 fi
 
-# Get ngrok URL
-NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*.ngrok-free.app')
-export PUBLIC_URL=$NGROK_URL
-
-echo ""
-print_status "Step 2: Configuring Twilio webhook for local testing..."
-
-# Update Twilio webhook to point to local server
-node update-twilio-webhook-local.js || {
-    print_warning "Could not update Twilio webhook automatically"
-    print_status "You may need to manually set your Twilio webhook to:"
-    print_status "$PUBLIC_URL/webhooks/twilio/sms"
-}
-
-echo ""
-print_status "Step 3: Starting auto-injection monitor..."
-
-# Start the auto-injection monitor in background
-node auto-inject-2fa.js &
-AUTO_INJECT_PID=$!
-
-print_status "Auto-injection monitor starting (PID: $AUTO_INJECT_PID)..."
-
-# Give it a moment to initialize
-sleep 2
-
-# Check if auto-inject process is still running
-if ! kill -0 $AUTO_INJECT_PID 2>/dev/null; then
-    print_error "Auto-injection monitor failed to start"
-    exit 1
+# Use PUBLIC_URL from environment if set (for Render deployment)
+if [ -z "$PUBLIC_URL" ]; then
+    # Default to localhost for local development
+    export PUBLIC_URL=http://localhost:3000
+    print_status "Using localhost for 2FA webhook"
+else
+    print_status "Using configured PUBLIC_URL: $PUBLIC_URL"
 fi
 
-print_success "Auto-injection monitor is running"
+echo ""
+print_status "Step 2: Running automation..."
+print_success "2FA webhook will use: $PUBLIC_URL/api/2fa/latest"
+
+echo ""
+print_status "Step 3: 2FA System Ready..."
+print_success "2FA will be handled by the dedicated Auth2FAService during automation"
+print_status "SMS codes will be retrieved directly from webhook endpoints"
 
 echo ""
 print_status "Step 4: Testing 2FA infrastructure..."
@@ -206,17 +189,17 @@ print_status "The automation will automatically handle 2FA when needed"
 echo ""
 
 print_warning "IMPORTANT: When VAuto prompts for 2FA:"
-print_warning "1. The automation will automatically poll for SMS codes"
-print_warning "2. SMS codes will be automatically injected"
-print_warning "3. The automation will click Verify automatically"
+print_warning "1. SMS codes will be received via Twilio webhook"
+print_warning "2. Auth2FAService will retrieve codes automatically"
+print_warning "3. The automation will enter and submit codes automatically"
 print_warning "4. No manual intervention should be needed"
 
 echo ""
 print_status "Starting automation in 3 seconds..."
 sleep 3
 
-# Run the automation
-npm run vauto:once
+# Run the automation using the modular system with protected 2FA
+ts-node scripts/run-vauto-modular.ts --once
 
 # Check the exit code
 if [ $? -eq 0 ]; then
@@ -231,7 +214,6 @@ print_success "Automation completed!"
 print_status "Check screenshots/ directory for any screenshots taken during execution"
 print_status "Check server logs for detailed execution information"
 
-# Note about webhook restoration
+# Local testing complete
 echo ""
-print_warning "NOTE: Your Twilio webhook was temporarily pointed to localhost for this test"
-print_warning "To restore production webhook, run: node update-twilio-webhook.js"
+print_status "Local automation testing completed successfully!"
