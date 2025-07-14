@@ -137,7 +137,10 @@ npm run build
 echo "🎨 Building frontend dashboard..."
 # Ensure we're in the project root for the dashboard build
 cd "$(dirname "$0")/.."
-npm run dashboard:build
+echo "📍 Current directory for dashboard build: $(pwd)"
+echo "📂 Checking for webpack config: $(ls -la webpack.config.js 2>/dev/null || echo 'webpack.config.js not found')"
+# Run webpack with explicit config path
+npx webpack --config webpack.config.js --mode production --progress
 echo "Dashboard build completed, checking output..."
 pwd
 ls -la dist/ 2>/dev/null || echo "No dist directory after dashboard build"

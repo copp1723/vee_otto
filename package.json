@@ -93,14 +93,14 @@
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.15.1",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "copy-webpack-plugin": "^13.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "@types/imap": "^0.8.40",
     "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "copy-webpack-plugin": "^13.0.0"
+    "@types/react-dom": "^18.2.0"
   },
   "keywords": [
     "automation",
