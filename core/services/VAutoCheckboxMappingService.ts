@@ -89,4 +89,228 @@ export class VAutoCheckboxMappingService extends CheckboxMappingService {
           this.logger.info(`✅ Direct mapping: "${feature}" → "${matchingCheckbox.label}"`);
           return actions; // Return early for direct matches
         }
-      }\n    }\n\n    // Strategy 2: Fuzzy matching with enhanced similarity\n    const bestMatch = this.findBestFuzzyMatch(feature, checkboxStates, processedCheckboxes);\n    if (bestMatch) {\n      actions.push(this.createCheckboxAction(bestMatch.checkbox, 'check', bestMatch.confidence));\n      processedCheckboxes.add(bestMatch.checkbox.id);\n      this.logger.info(`🔍 Fuzzy match: "${feature}" → "${bestMatch.checkbox.label}" (${(bestMatch.confidence * 100).toFixed(1)}%)`);\n    } else {\n      this.logger.warn(`❌ No mapping found for feature: "${feature}"`);\n    }\n\n    return actions;\n  }\n\n  /**\n   * Find checkbox by exact label match\n   */\n  private findCheckboxByLabel(label: string, checkboxStates: CheckboxState[]): CheckboxState | null {\n    return checkboxStates.find(cb => \n      cb.label.toLowerCase() === label.toLowerCase() ||\n      cb.label.toLowerCase().includes(label.toLowerCase()) ||\n      label.toLowerCase().includes(cb.label.toLowerCase())\n    ) || null;\n  }\n\n  /**\n   * Enhanced fuzzy matching with VAuto-specific logic\n   */\n  private findBestFuzzyMatch(feature: string, checkboxStates: CheckboxState[], processedCheckboxes: Set<string>): { checkbox: CheckboxState; confidence: number } | null {\n    let bestMatch: { checkbox: CheckboxState; confidence: number } | null = null;\n    const minThreshold = 0.6; // Lower threshold for more matches\n\n    for (const checkbox of checkboxStates) {\n      if (processedCheckboxes.has(checkbox.id)) continue;\n\n      const confidence = this.calculateEnhancedSimilarity(feature, checkbox.label);\n      \n      if (confidence >= minThreshold && (!bestMatch || confidence > bestMatch.confidence)) {\n        bestMatch = { checkbox, confidence };\n      }\n    }\n\n    return bestMatch;\n  }\n\n  /**\n   * Enhanced similarity calculation with keyword matching\n   */\n  private calculateEnhancedSimilarity(feature: string, checkboxLabel: string): number {\n    // Base Levenshtein similarity\n    const baseSimilarity = this.calculateSimilarity(feature, checkboxLabel);\n    \n    // Keyword matching bonus\n    const keywordBonus = this.calculateKeywordSimilarity(feature, checkboxLabel);\n    \n    // Combine scores with weighting\n    return Math.min(1.0, baseSimilarity * 0.7 + keywordBonus * 0.3);\n  }\n\n  /**\n   * Calculate keyword-based similarity\n   */\n  private calculateKeywordSimilarity(feature: string, checkboxLabel: string): number {\n    const featureWords = this.extractKeywords(feature);\n    const labelWords = this.extractKeywords(checkboxLabel);\n    \n    if (featureWords.length === 0 || labelWords.length === 0) return 0;\n    \n    let matchingWords = 0;\n    for (const featureWord of featureWords) {\n      for (const labelWord of labelWords) {\n        if (featureWord === labelWord || \n            featureWord.includes(labelWord) || \n            labelWord.includes(featureWord)) {\n          matchingWords++;\n          break;\n        }\n      }\n    }\n    \n    return matchingWords / Math.max(featureWords.length, labelWords.length);\n  }\n\n  /**\n   * Extract meaningful keywords from text\n   */\n  private extractKeywords(text: string): string[] {\n    const stopWords = new Set(['the', 'and', 'or', 'with', 'for', 'to', 'of', 'in', 'on', 'at']);\n    \n    return text.toLowerCase()\n      .replace(/[^a-z0-9\\s]/g, ' ')\n      .split(/\\s+/)\n      .filter(word => word.length > 2 && !stopWords.has(word))\n      .filter(word => !word.match(/^\\d+$/)); // Remove pure numbers\n  }\n\n  /**\n   * Create checkbox action with proper state management\n   */\n  private createCheckboxAction(checkbox: CheckboxState, action: 'check' | 'uncheck', confidence: number): CheckboxAction {\n    // Only create action if state change is needed\n    const needsAction = (action === 'check' && !checkbox.checked) || (action === 'uncheck' && checkbox.checked);\n    \n    return {\n      id: checkbox.id,\n      label: checkbox.label,\n      action: needsAction ? action : 'none',\n      confidence\n    };\n  }\n\n  /**\n   * Enhanced checkbox state detection for VAuto ExtJS interface\n   */\n  protected async getAllCheckboxStates(): Promise<CheckboxState[]> {\n    const checkboxStates: CheckboxState[] = [];\n\n    try {\n      // VAuto uses ExtJS checkboxes with specific pattern\n      const vAutoCheckboxes = await this.page.locator('input[id*=\"ext-va-feature-checkbox-\"]').all();\n      \n      if (vAutoCheckboxes.length > 0) {\n        this.logger.info(`Found ${vAutoCheckboxes.length} VAuto feature checkboxes`);\n        \n        for (const checkbox of vAutoCheckboxes) {\n          const id = await checkbox.getAttribute('id') || 'unknown';\n          const label = await this.getVAutoCheckboxLabel(checkbox);\n          const checked = await this.getVAutoCheckboxState(checkbox);\n          \n          if (label && label !== 'Unknown Label') {\n            checkboxStates.push({ id, label, checked, locator: checkbox });\n          }\n        }\n      } else {\n        // Fallback to parent implementation\n        return await super.getAllCheckboxStates();\n      }\n\n    } catch (error) {\n      this.logger.error('Failed to get VAuto checkbox states:', error);\n      return await super.getAllCheckboxStates();\n    }\n\n    return checkboxStates;\n  }\n\n  /**\n   * Get VAuto-specific checkbox label\n   */\n  private async getVAutoCheckboxLabel(checkbox: any): Promise<string> {\n    try {\n      // VAuto ExtJS checkboxes often have labels in specific DOM structure\n      const strategies = [\n        // Strategy 1: Following sibling span/div\n        async () => {\n          const sibling = checkbox.locator('xpath=following-sibling::span[1] | xpath=following-sibling::div[1]');\n          return await sibling.textContent();\n        },\n        \n        // Strategy 2: Parent container text\n        async () => {\n          const parent = checkbox.locator('xpath=parent::div | xpath=parent::td');\n          const text = await parent.textContent();\n          return text?.replace(/^\\s*\\[\\s*\\]\\s*/, ''); // Remove checkbox indicator\n        },\n        \n        // Strategy 3: Associated label by ID\n        async () => {\n          const id = await checkbox.getAttribute('id');\n          if (id) {\n            const label = this.page.locator(`label[for=\"${id}\"]`);\n            return await label.textContent();\n          }\n          return null;\n        }\n      ];\n\n      for (const strategy of strategies) {\n        try {\n          const label = await strategy();\n          if (label && label.trim().length > 0) {\n            return label.trim();\n          }\n        } catch (e) {\n          continue;\n        }\n      }\n\n    } catch (error) {\n      this.logger.warn('Error getting VAuto checkbox label:', error);\n    }\n\n    return 'Unknown Label';\n  }\n\n  /**\n   * Get VAuto-specific checkbox state (ExtJS may use different indicators)\n   */\n  private async getVAutoCheckboxState(checkbox: any): Promise<boolean> {\n    try {\n      // Try standard checked property first\n      const standardChecked = await checkbox.isChecked();\n      if (standardChecked !== undefined) {\n        return standardChecked;\n      }\n\n      // VAuto ExtJS might use image-based checkboxes\n      const id = await checkbox.getAttribute('id');\n      if (id) {\n        const checkboxImg = this.page.locator(`//div[@id=\"${id}\"]/img`);\n        if (await checkboxImg.isVisible()) {\n          const src = await checkboxImg.getAttribute('src');\n          return src?.includes('checked') || src?.includes('true') || false;\n        }\n      }\n\n      return false;\n    } catch (error) {\n      this.logger.warn('Error getting VAuto checkbox state:', error);\n      return false;\n    }\n  }\n}
+      }
+    }
+
+    // Strategy 2: Fuzzy matching with enhanced similarity
+    const bestMatch = this.findBestFuzzyMatch(feature, checkboxStates, processedCheckboxes);
+    if (bestMatch) {
+      actions.push(this.createCheckboxAction(bestMatch.checkbox, 'check', bestMatch.confidence));
+      processedCheckboxes.add(bestMatch.checkbox.id);
+      this.logger.info(`🔍 Fuzzy match: "${feature}" → "${bestMatch.checkbox.label}" (${(bestMatch.confidence * 100).toFixed(1)}%)`);
+    } else {
+      this.logger.warn(`❌ No mapping found for feature: "${feature}"`);
+    }
+
+    return actions;
+  }
+
+  /**
+   * Find checkbox by exact label match
+   */
+  private findCheckboxByLabel(label: string, checkboxStates: CheckboxState[]): CheckboxState | null {
+    return checkboxStates.find(cb => 
+      cb.label.toLowerCase() === label.toLowerCase() ||
+      cb.label.toLowerCase().includes(label.toLowerCase()) ||
+      label.toLowerCase().includes(cb.label.toLowerCase())
+    ) || null;
+  }
+
+  /**
+   * Enhanced fuzzy matching with VAuto-specific logic
+   */
+  private findBestFuzzyMatch(feature: string, checkboxStates: CheckboxState[], processedCheckboxes: Set<string>): { checkbox: CheckboxState; confidence: number } | null {
+    let bestMatch: { checkbox: CheckboxState; confidence: number } | null = null;
+    const minThreshold = 0.6; // Lower threshold for more matches
+
+    for (const checkbox of checkboxStates) {
+      if (processedCheckboxes.has(checkbox.id)) continue;
+
+      const confidence = this.calculateEnhancedSimilarity(feature, checkbox.label);
+      
+      if (confidence >= minThreshold && (!bestMatch || confidence > bestMatch.confidence)) {
+        bestMatch = { checkbox, confidence };
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Enhanced similarity calculation with keyword matching
+   */
+  private calculateEnhancedSimilarity(feature: string, checkboxLabel: string): number {
+    // Base Levenshtein similarity
+    const baseSimilarity = this.calculateSimilarity(feature, checkboxLabel);
+    
+    // Keyword matching bonus
+    const keywordBonus = this.calculateKeywordSimilarity(feature, checkboxLabel);
+    
+    // Combine scores with weighting
+    return Math.min(1.0, baseSimilarity * 0.7 + keywordBonus * 0.3);
+  }
+
+  /**
+   * Calculate keyword-based similarity
+   */
+  private calculateKeywordSimilarity(feature: string, checkboxLabel: string): number {
+    const featureWords = this.extractKeywords(feature);
+    const labelWords = this.extractKeywords(checkboxLabel);
+    
+    if (featureWords.length === 0 || labelWords.length === 0) return 0;
+    
+    let matchingWords = 0;
+    for (const featureWord of featureWords) {
+      for (const labelWord of labelWords) {
+        if (featureWord === labelWord || 
+            featureWord.includes(labelWord) || 
+            labelWord.includes(featureWord)) {
+          matchingWords++;
+          break;
+        }
+      }
+    }
+    
+    return matchingWords / Math.max(featureWords.length, labelWords.length);
+  }
+
+  /**
+   * Extract meaningful keywords from text
+   */
+  private extractKeywords(text: string): string[] {
+    const stopWords = new Set(['the', 'and', 'or', 'with', 'for', 'to', 'of', 'in', 'on', 'at']);
+    
+    return text.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !stopWords.has(word))
+      .filter(word => !word.match(/^\d+$/)); // Remove pure numbers
+  }
+
+  /**
+   * Create checkbox action with proper state management
+   */
+  private createCheckboxAction(checkbox: CheckboxState, action: 'check' | 'uncheck', confidence: number): CheckboxAction {
+    // Only create action if state change is needed
+    const needsAction = (action === 'check' && !checkbox.checked) || (action === 'uncheck' && checkbox.checked);
+    
+    return {
+      id: checkbox.id,
+      label: checkbox.label,
+      action: needsAction ? action : 'none',
+      confidence
+    };
+  }
+
+  /**
+   * Enhanced checkbox state detection for VAuto ExtJS interface
+   */
+  protected async getAllCheckboxStates(): Promise<CheckboxState[]> {
+    const checkboxStates: CheckboxState[] = [];
+
+    try {
+      // VAuto uses ExtJS checkboxes with specific pattern
+      const vAutoCheckboxes = await this.page.locator('input[id*="ext-va-feature-checkbox-"]').all();
+      
+      if (vAutoCheckboxes.length > 0) {
+        this.logger.info(`Found ${vAutoCheckboxes.length} VAuto feature checkboxes`);
+        
+        for (const checkbox of vAutoCheckboxes) {
+          const id = await checkbox.getAttribute('id') || 'unknown';
+          const label = await this.getVAutoCheckboxLabel(checkbox);
+          const checked = await this.getVAutoCheckboxState(checkbox);
+          
+          if (label && label !== 'Unknown Label') {
+            checkboxStates.push({ id, label, checked, locator: checkbox });
+          }
+        }
+      } else {
+        // Fallback to parent implementation
+        return await super.getAllCheckboxStates();
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to get VAuto checkbox states:', error);
+      return await super.getAllCheckboxStates();
+    }
+
+    return checkboxStates;
+  }
+
+  /**
+   * Get VAuto-specific checkbox label
+   */
+  private async getVAutoCheckboxLabel(checkbox: any): Promise<string> {
+    try {
+      // VAuto ExtJS checkboxes often have labels in specific DOM structure
+      const strategies = [
+        // Strategy 1: Following sibling span/div
+        async () => {
+          const sibling = checkbox.locator('xpath=following-sibling::span[1] | xpath=following-sibling::div[1]');
+          return await sibling.textContent();
+        },
+        
+        // Strategy 2: Parent container text
+        async () => {
+          const parent = checkbox.locator('xpath=parent::div | xpath=parent::td');
+          const text = await parent.textContent();
+          return text?.replace(/^\s*\[\s*\]\s*/, ''); // Remove checkbox indicator
+        },
+        
+        // Strategy 3: Associated label by ID
+        async () => {
+          const id = await checkbox.getAttribute('id');
+          if (id) {
+            const label = this.page.locator(`label[for="${id}"]`);
+            return await label.textContent();
+          }
+          return null;
+        }
+      ];
+
+      for (const strategy of strategies) {
+        try {
+          const label = await strategy();
+          if (label && label.trim().length > 0) {
+            return label.trim();
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+    } catch (error) {
+      this.logger.warn('Error getting VAuto checkbox label:', error);
+    }
+
+    return 'Unknown Label';
+  }
+
+  /**
+   * Get VAuto-specific checkbox state (ExtJS may use different indicators)
+   */
+  private async getVAutoCheckboxState(checkbox: any): Promise<boolean> {
+    try {
+      // Try standard checked property first
+      const standardChecked = await checkbox.isChecked();
+      if (standardChecked !== undefined) {
+        return standardChecked;
+      }
+
+      // VAuto ExtJS might use image-based checkboxes
+      const id = await checkbox.getAttribute('id');
+      if (id) {
+        const checkboxImg = this.page.locator(`//div[@id="${id}"]/img`);
+        if (await checkboxImg.isVisible()) {
+          const src = await checkboxImg.getAttribute('src');
+          return src?.includes('checked') || src?.includes('true') || false;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.warn('Error getting VAuto checkbox state:', error);
+      return false;
+    }
+  }
+}

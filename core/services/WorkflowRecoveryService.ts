@@ -16,4 +16,274 @@ export class WorkflowRecoveryService {
     this.logger = logger;
   }
 
-  /**\n   * Recover from vehicle navigation failures\n   */\n  async recoverFromNavigationFailure(): Promise<RecoveryResult> {\n    this.logger.info('🔄 Attempting navigation recovery...');\n\n    try {\n      // Strategy 1: Check if we're still on inventory page\n      const currentUrl = this.page.url();\n      if (currentUrl.includes('/Inventory/')) {\n        this.logger.info('✅ Still on inventory page, no recovery needed');\n        return { success: true, method: 'no-recovery-needed' };\n      }\n\n      // Strategy 2: Use browser back button\n      try {\n        await this.page.goBack();\n        await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NAVIGATION });\n        \n        if (this.page.url().includes('/Inventory/')) {\n          this.logger.info('✅ Recovered using browser back button');\n          return { success: true, method: 'browser-back' };\n        }\n      } catch (e) {\n        this.logger.warn('Browser back failed:', e);\n      }\n\n      // Strategy 3: Direct navigation to inventory\n      const inventoryUrl = this.constructInventoryUrl(currentUrl);\n      if (inventoryUrl) {\n        await this.page.goto(inventoryUrl);\n        await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NAVIGATION });\n        \n        if (this.page.url().includes('/Inventory/')) {\n          this.logger.info('✅ Recovered using direct navigation');\n          return { success: true, method: 'direct-navigation' };\n        }\n      }\n\n      return { success: false, method: 'navigation-recovery', error: 'All recovery methods failed' };\n\n    } catch (error) {\n      return { \n        success: false, \n        method: 'navigation-recovery', \n        error: error instanceof Error ? error.message : String(error) \n      };\n    }\n  }\n\n  /**\n   * Recover from window sticker access failures\n   */\n  async recoverFromWindowStickerFailure(vehicleVin: string): Promise<RecoveryResult> {\n    this.logger.info(`🔄 Attempting window sticker recovery for ${vehicleVin}...`);\n\n    try {\n      // Strategy 1: Look for alternative sticker access methods\n      const alternativeSelectors = [\n        '//a[contains(text(), \"Monroney\")]',\n        '//a[contains(text(), \"MSRP\")]',\n        '//a[contains(text(), \"Sticker\")]',\n        '//button[contains(text(), \"Equipment\")]'\n      ];\n\n      for (const selector of alternativeSelectors) {\n        try {\n          const element = this.page.locator(selector).first();\n          if (await element.isVisible({ timeout: 2000 })) {\n            await element.click();\n            await this.page.waitForTimeout(2000);\n            \n            // Check if content is now available\n            const hasContent = await this.checkForStickerContent();\n            if (hasContent) {\n              this.logger.info(`✅ Recovered window sticker access using: ${selector}`);\n              return { success: true, method: 'alternative-selector' };\n            }\n          }\n        } catch (e) {\n          continue;\n        }\n      }\n\n      // Strategy 2: Skip this vehicle and log for manual review\n      this.logger.warn(`⚠️ Window sticker unavailable for ${vehicleVin}, marking for manual review`);\n      return { success: false, method: 'skip-vehicle', error: 'Window sticker not accessible' };\n\n    } catch (error) {\n      return { \n        success: false, \n        method: 'window-sticker-recovery', \n        error: error instanceof Error ? error.message : String(error) \n      };\n    }\n  }\n\n  /**\n   * Recover from checkbox update failures\n   */\n  async recoverFromCheckboxFailure(): Promise<RecoveryResult> {\n    this.logger.info('🔄 Attempting checkbox update recovery...');\n\n    try {\n      // Strategy 1: Refresh the page and try again\n      await this.page.reload({ waitUntil: 'networkidle' });\n      await this.page.waitForTimeout(3000);\n      \n      // Check if checkboxes are now accessible\n      const checkboxCount = await this.page.locator('input[type=\"checkbox\"]').count();\n      if (checkboxCount > 0) {\n        this.logger.info('✅ Checkboxes accessible after page refresh');\n        return { success: true, method: 'page-refresh' };\n      }\n\n      // Strategy 2: Try to navigate back to Factory Equipment tab\n      const factoryTab = this.page.locator('//a[contains(text(), \"Factory Equipment\")]').first();\n      if (await factoryTab.isVisible({ timeout: 2000 })) {\n        await factoryTab.click();\n        await this.page.waitForTimeout(2000);\n        \n        const newCheckboxCount = await this.page.locator('input[type=\"checkbox\"]').count();\n        if (newCheckboxCount > 0) {\n          this.logger.info('✅ Checkboxes accessible after tab navigation');\n          return { success: true, method: 'tab-navigation' };\n        }\n      }\n\n      return { success: false, method: 'checkbox-recovery', error: 'Checkboxes remain inaccessible' };\n\n    } catch (error) {\n      return { \n        success: false, \n        method: 'checkbox-recovery', \n        error: error instanceof Error ? error.message : String(error) \n      };\n    }\n  }\n\n  /**\n   * Recover from session timeout or authentication issues\n   */\n  async recoverFromSessionFailure(): Promise<RecoveryResult> {\n    this.logger.info('🔄 Attempting session recovery...');\n\n    try {\n      // Check for session timeout indicators\n      const sessionTimeoutSelectors = [\n        '//div[contains(text(), \"session\") and contains(text(), \"expired\")]',\n        '//div[contains(text(), \"Please log in\")]',\n        '//div[contains(@class, \"login\")]'\n      ];\n\n      let sessionExpired = false;\n      for (const selector of sessionTimeoutSelectors) {\n        if (await this.page.locator(selector).isVisible({ timeout: 1000 })) {\n          sessionExpired = true;\n          break;\n        }\n      }\n\n      if (sessionExpired) {\n        this.logger.warn('⚠️ Session expired detected - requires re-authentication');\n        return { success: false, method: 'session-recovery', error: 'Session expired - re-authentication required' };\n      }\n\n      // Check if we're redirected to login page\n      const currentUrl = this.page.url();\n      if (currentUrl.includes('signin') || currentUrl.includes('login')) {\n        this.logger.warn('⚠️ Redirected to login page - authentication required');\n        return { success: false, method: 'session-recovery', error: 'Redirected to login - re-authentication required' };\n      }\n\n      return { success: true, method: 'session-check', error: 'Session appears to be valid' };\n\n    } catch (error) {\n      return { \n        success: false, \n        method: 'session-recovery', \n        error: error instanceof Error ? error.message : String(error) \n      };\n    }\n  }\n\n  /**\n   * Generic recovery for page load failures\n   */\n  async recoverFromPageLoadFailure(): Promise<RecoveryResult> {\n    this.logger.info('🔄 Attempting page load recovery...');\n\n    try {\n      // Strategy 1: Wait longer for page to load\n      await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.PAGE_LOAD * 2 });\n      \n      // Strategy 2: Check for loading indicators and wait\n      const loadingSelectors = [\n        '//div[contains(@class, \"loading\")]',\n        '//div[contains(@class, \"spinner\")]',\n        '//div[contains(@class, \"ext-el-mask\")]'\n      ];\n\n      for (const selector of loadingSelectors) {\n        try {\n          const loadingElement = this.page.locator(selector);\n          if (await loadingElement.isVisible({ timeout: 1000 })) {\n            this.logger.info('Waiting for loading indicator to disappear...');\n            await loadingElement.waitFor({ state: 'hidden', timeout: TIMEOUTS.PAGE_LOAD });\n          }\n        } catch (e) {\n          continue;\n        }\n      }\n\n      // Strategy 3: Refresh page if still having issues\n      const pageTitle = await this.page.title();\n      if (!pageTitle || pageTitle.includes('Error') || pageTitle.includes('404')) {\n        this.logger.info('Page appears to have errors, refreshing...');\n        await this.page.reload({ waitUntil: 'networkidle' });\n        await this.page.waitForTimeout(3000);\n      }\n\n      return { success: true, method: 'page-load-recovery' };\n\n    } catch (error) {\n      return { \n        success: false, \n        method: 'page-load-recovery', \n        error: error instanceof Error ? error.message : String(error) \n      };\n    }\n  }\n\n  /**\n   * Construct inventory URL from current URL\n   */\n  private constructInventoryUrl(currentUrl: string): string | null {\n    try {\n      const url = new URL(currentUrl);\n      return `${url.protocol}//${url.hostname}/Va/Inventory/`;\n    } catch (e) {\n      return null;\n    }\n  }\n\n  /**\n   * Check if window sticker content is available\n   */\n  private async checkForStickerContent(): Promise<boolean> {\n    const contentSelectors = [\n      '//div[contains(@class, \"window-sticker\")]',\n      '//div[contains(@class, \"factory-equipment\")]',\n      '//div[contains(@class, \"sticker-content\")]'\n    ];\n\n    for (const selector of contentSelectors) {\n      try {\n        const element = this.page.locator(selector).first();\n        if (await element.isVisible({ timeout: 1000 })) {\n          const content = await element.textContent();\n          if (content && content.length > 50) {\n            return true;\n          }\n        }\n      } catch (e) {\n        continue;\n      }\n    }\n\n    return false;\n  }\n}
+  /**
+   * Recover from vehicle navigation failures
+   */
+  async recoverFromNavigationFailure(): Promise<RecoveryResult> {
+    this.logger.info('🔄 Attempting navigation recovery...');
+
+    try {
+      // Strategy 1: Check if we're still on inventory page
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('/Inventory/')) {
+        this.logger.info('✅ Still on inventory page, no recovery needed');
+        return { success: true, method: 'no-recovery-needed' };
+      }
+
+      // Strategy 2: Use browser back button
+      try {
+        await this.page.goBack();
+        await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NAVIGATION });
+        
+        if (this.page.url().includes('/Inventory/')) {
+          this.logger.info('✅ Recovered using browser back button');
+          return { success: true, method: 'browser-back' };
+        }
+      } catch (e) {
+        this.logger.warn('Browser back failed:', e);
+      }
+
+      // Strategy 3: Direct navigation to inventory
+      const inventoryUrl = this.constructInventoryUrl(currentUrl);
+      if (inventoryUrl) {
+        await this.page.goto(inventoryUrl);
+        await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.NAVIGATION });
+        
+        if (this.page.url().includes('/Inventory/')) {
+          this.logger.info('✅ Recovered using direct navigation');
+          return { success: true, method: 'direct-navigation' };
+        }
+      }
+
+      return { success: false, method: 'navigation-recovery', error: 'All recovery methods failed' };
+
+    } catch (error) {
+      return { 
+        success: false, 
+        method: 'navigation-recovery', 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
+
+  /**
+   * Recover from window sticker access failures
+   */
+  async recoverFromWindowStickerFailure(vehicleVin: string): Promise<RecoveryResult> {
+    this.logger.info(`🔄 Attempting window sticker recovery for ${vehicleVin}...`);
+
+    try {
+      // Strategy 1: Look for alternative sticker access methods
+      const alternativeSelectors = [
+        '//a[contains(text(), "Monroney")]',
+        '//a[contains(text(), "MSRP")]',
+        '//a[contains(text(), "Sticker")]',
+        '//button[contains(text(), "Equipment")]'
+      ];
+
+      for (const selector of alternativeSelectors) {
+        try {
+          const element = this.page.locator(selector).first();
+          if (await element.isVisible({ timeout: 2000 })) {
+            await element.click();
+            await this.page.waitForTimeout(2000);
+            
+            // Check if content is now available
+            const hasContent = await this.checkForStickerContent();
+            if (hasContent) {
+              this.logger.info(`✅ Recovered window sticker access using: ${selector}`);
+              return { success: true, method: 'alternative-selector' };
+            }
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      // Strategy 2: Skip this vehicle and log for manual review
+      this.logger.warn(`⚠️ Window sticker unavailable for ${vehicleVin}, marking for manual review`);
+      return { success: false, method: 'skip-vehicle', error: 'Window sticker not accessible' };
+
+    } catch (error) {
+      return { 
+        success: false, 
+        method: 'window-sticker-recovery', 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
+
+  /**
+   * Recover from checkbox update failures
+   */
+  async recoverFromCheckboxFailure(): Promise<RecoveryResult> {
+    this.logger.info('🔄 Attempting checkbox update recovery...');
+
+    try {
+      // Strategy 1: Refresh the page and try again
+      await this.page.reload({ waitUntil: 'networkidle' });
+      await this.page.waitForTimeout(3000);
+      
+      // Check if checkboxes are now accessible
+      const checkboxCount = await this.page.locator('input[type="checkbox"]').count();
+      if (checkboxCount > 0) {
+        this.logger.info('✅ Checkboxes accessible after page refresh');
+        return { success: true, method: 'page-refresh' };
+      }
+
+      // Strategy 2: Try to navigate back to Factory Equipment tab
+      const factoryTab = this.page.locator('//a[contains(text(), "Factory Equipment")]').first();
+      if (await factoryTab.isVisible({ timeout: 2000 })) {
+        await factoryTab.click();
+        await this.page.waitForTimeout(2000);
+        
+        const newCheckboxCount = await this.page.locator('input[type="checkbox"]').count();
+        if (newCheckboxCount > 0) {
+          this.logger.info('✅ Checkboxes accessible after tab navigation');
+          return { success: true, method: 'tab-navigation' };
+        }
+      }
+
+      return { success: false, method: 'checkbox-recovery', error: 'Checkboxes remain inaccessible' };
+
+    } catch (error) {
+      return { 
+        success: false, 
+        method: 'checkbox-recovery', 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
+
+  /**
+   * Recover from session timeout or authentication issues
+   */
+  async recoverFromSessionFailure(): Promise<RecoveryResult> {
+    this.logger.info('🔄 Attempting session recovery...');
+
+    try {
+      // Check for session timeout indicators
+      const sessionTimeoutSelectors = [
+        '//div[contains(text(), "session") and contains(text(), "expired")]',
+        '//div[contains(text(), "Please log in")]',
+        '//div[contains(@class, "login")]'
+      ];
+
+      let sessionExpired = false;
+      for (const selector of sessionTimeoutSelectors) {
+        if (await this.page.locator(selector).isVisible({ timeout: 1000 })) {
+          sessionExpired = true;
+          break;
+        }
+      }
+
+      if (sessionExpired) {
+        this.logger.warn('⚠️ Session expired detected - requires re-authentication');
+        return { success: false, method: 'session-recovery', error: 'Session expired - re-authentication required' };
+      }
+
+      // Check if we're redirected to login page
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('signin') || currentUrl.includes('login')) {
+        this.logger.warn('⚠️ Redirected to login page - authentication required');
+        return { success: false, method: 'session-recovery', error: 'Redirected to login - re-authentication required' };
+      }
+
+      return { success: true, method: 'session-check', error: 'Session appears to be valid' };
+
+    } catch (error) {
+      return { 
+        success: false, 
+        method: 'session-recovery', 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
+
+  /**
+   * Generic recovery for page load failures
+   */
+  async recoverFromPageLoadFailure(): Promise<RecoveryResult> {
+    this.logger.info('🔄 Attempting page load recovery...');
+
+    try {
+      // Strategy 1: Wait longer for page to load
+      await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.PAGE_LOAD * 2 });
+      
+      // Strategy 2: Check for loading indicators and wait
+      const loadingSelectors = [
+        '//div[contains(@class, "loading")]',
+        '//div[contains(@class, "spinner")]',
+        '//div[contains(@class, "ext-el-mask")]'
+      ];
+
+      for (const selector of loadingSelectors) {
+        try {
+          const loadingElement = this.page.locator(selector);
+          if (await loadingElement.isVisible({ timeout: 1000 })) {
+            this.logger.info('Waiting for loading indicator to disappear...');
+            await loadingElement.waitFor({ state: 'hidden', timeout: TIMEOUTS.PAGE_LOAD });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      // Strategy 3: Refresh page if still having issues
+      const pageTitle = await this.page.title();
+      if (!pageTitle || pageTitle.includes('Error') || pageTitle.includes('404')) {
+        this.logger.info('Page appears to have errors, refreshing...');
+        await this.page.reload({ waitUntil: 'networkidle' });
+        await this.page.waitForTimeout(3000);
+      }
+
+      return { success: true, method: 'page-load-recovery' };
+
+    } catch (error) {
+      return { 
+        success: false, 
+        method: 'page-load-recovery', 
+        error: error instanceof Error ? error.message : String(error) 
+      };
+    }
+  }
+
+  /**
+   * Construct inventory URL from current URL
+   */
+  private constructInventoryUrl(currentUrl: string): string | null {
+    try {
+      const url = new URL(currentUrl);
+      return `${url.protocol}//${url.hostname}/Va/Inventory/`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Check if window sticker content is available
+   */
+  private async checkForStickerContent(): Promise<boolean> {
+    const contentSelectors = [
+      '//div[contains(@class, "window-sticker")]',
+      '//div[contains(@class, "factory-equipment")]',
+      '//div[contains(@class, "sticker-content")]'
+    ];
+
+    for (const selector of contentSelectors) {
+      try {
+        const element = this.page.locator(selector).first();
+        if (await element.isVisible({ timeout: 1000 })) {
+          const content = await element.textContent();
+          if (content && content.length > 50) {
+            return true;
+          }
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    return false;
+  }
+}
