@@ -49,13 +49,13 @@ export class OCRService {
       // Ensure cache directory exists
       await fs.ensureDir(this.config.cacheDir!);
 
-      // Create worker
-      this.worker = await createWorker();
+      // Update worker creation with proper paths if needed
+      this.worker = await createWorker(this.config.language!);
 
-      // Load language and initialize
-      await (this.worker as any).load();
-      await (this.worker as any).loadLanguage(this.config.language!);
-      await (this.worker as any).initialize(this.config.language!);
+      // Initialize with language
+      await this.worker.load();
+      await this.worker.loadLanguage(this.config.language!);
+      await this.worker.initialize(this.config.language!);
 
       this.isInitialized = true;
       this.logger.info('OCR service initialized successfully');
