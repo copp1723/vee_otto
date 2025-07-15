@@ -434,7 +434,33 @@ export class VAutoAgent extends BaseAgent {
               const age = await this.page.evaluate(tr => tr?.querySelector('td:nth-child(5) > div')?.textContent?.trim() || '', rowHandle) as string;
               // Add more columns as needed
 
-              await vehicleLinks[i].click();
+              const rowLocator = this.page.locator(vAutoSelectors.inventory.vehicleRows).nth(i);
+              const linkLocator = rowLocator.locator('a').first();
+
+              try {
+                if (await linkLocator.isVisible({ timeout: 3000 })) {
+                  await linkLocator.scrollIntoViewIfNeeded();
+                  await linkLocator.click({ timeout: 5000 });
+                } else {
+                  // Fallback to clicking the entire row (legacy behaviour)
+                  await rowLocator.scrollIntoViewIfNeeded();
+                  await rowLocator.click({ timeout: 5000 });
+                }
+              } catch (clickErr) {
+                this.logger.warn(`Primary click on vehicle link failed, retrying with force: ${clickErr instanceof Error ? clickErr.message : String(clickErr)}`);
+                try {
+                  await linkLocator.click({ force: true, timeout: 5000 });
+                } catch {
+                  // Final fallback – attempt JS click on the first anchor within row via evaluate
+                  const handle = await rowLocator.elementHandle();
+                  if (handle) {
+                    await this.page.evaluate((el) => {
+                      const link = el.querySelector('a');
+                      if (link) (link as HTMLElement).click();
+                    }, handle);
+                  }
+                }
+              }
               await this.processVehicle();
               
               // Navigate back to inventory
