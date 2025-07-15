@@ -55,6 +55,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.14",
     "axios": "^1.10.0",
+    "copy-webpack-plugin": "^13.0.0",
     "cors": "^2.8.5",
     "css-loader": "^6.8.1",
     "dotenv": "^16.3.1",
@@ -63,7 +64,7 @@
     "fs-extra": "^11.2.0",
     "fuzzball": "^2.1.2",
     "html-webpack-plugin": "^5.5.3",
-    "imap": "^0.8.19",
+    "imap": "^0.8.17",
     "imapflow": "^1.0.191",
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.6.5",
@@ -89,9 +90,8 @@
     "typescript": "^5.2.2",
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1",
-    "winston": "^3.11.0",
-    "copy-webpack-plugin": "^13.0.0"
+    "webpack-dev-server": "^5.2.2",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",

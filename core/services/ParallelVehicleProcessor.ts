@@ -1,281 +1,275 @@
-import { Logger } from '../utils/Logger';
-import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
-import { ErrorReporter } from '../utils/ErrorReporter';
+import { Browser, BrowserContext, Page } from 'playwright';
+import { WorkerPoolManager } from './WorkerPoolManager';
+import { ParallelCoordinator } from './ParallelCoordinator';
 
-export interface Vehicle {
-  vin: string;
-  year: number;
-  make: string;
-  model: string;
-  stockNumber?: string;
-  [key: string]: any;
+export interface ParallelConfig {
+  maxConcurrency: number;
+  workerTimeout: number;
+  errorThreshold: number;
+  batchSize: number;
 }
 
-export interface VehicleResult {
-  vehicle: Vehicle;
-  status: 'success' | 'failed' | 'skipped';
-  error?: Error;
-  duration?: number;
-  details?: any;
+export interface ServiceConfig {
+  validation: any;
+  windowSticker: any;
+  checkboxMapping: any;
+  inventoryFilter: any;
 }
 
-export interface BatchResult {
-  results: VehicleResult[];
-  successRate: number;
-  totalDuration: number;
-  averageDuration: number;
+export interface ParallelResult {
+  success: boolean;
+  totalVehicles: number;
+  processedVehicles: number;
+  failedVehicles: number;
+  totalFeatures: number;
+  processingTime: number;
+  workerResults: WorkerResult[];
+  errors: string[];
 }
 
-export interface ProcessorConfig {
-  maxConcurrency?: number;
-  batchSize?: number;
-  retryAttempts?: number;
-  timeout?: number;
-  errorThreshold?: number;
+export interface WorkerResult {
+  workerId: string;
+  vehiclesProcessed: number;
+  featuresFound: number;
+  processingTime: number;
+  success: boolean;
+  errors: string[];
 }
 
 export class ParallelVehicleProcessor {
-  private logger: Logger;
-  private performanceMonitor: PerformanceMonitor;
-  private errorReporter: ErrorReporter;
-  private config: Required<ProcessorConfig>;
+  private config: ParallelConfig;
+  private services: ServiceConfig;
+  private workerPool: WorkerPoolManager;
+  private coordinator: ParallelCoordinator;
+  private logger: any;
 
-  constructor(config: ProcessorConfig = {}) {
-    this.config = {
-      maxConcurrency: config.maxConcurrency || 3,
-      batchSize: config.batchSize || 10,
-      retryAttempts: config.retryAttempts || 2,
-      timeout: config.timeout || 300000, // 5 minutes
-      errorThreshold: config.errorThreshold || 0.5 // Stop if >50% fail
-    };
-
-    this.logger = new Logger('ParallelVehicleProcessor');
-    this.performanceMonitor = new PerformanceMonitor('vehicle-processing');
-    this.errorReporter = new ErrorReporter('ParallelProcessor');
+  constructor(config: ParallelConfig, services: ServiceConfig, logger: any) {
+    this.config = config;
+    this.services = services;
+    this.logger = logger;
+    this.workerPool = new WorkerPoolManager(config, logger);
+    this.coordinator = new ParallelCoordinator(config, logger);
   }
 
   /**
-   * Process vehicles in parallel batches
+   * Process vehicles in parallel using worker pool
    */
-  async processBatch(
-    vehicles: Vehicle[],
-    processFunc: (vehicle: Vehicle) => Promise<VehicleResult>,
-    options: { abortOnError?: boolean } = {}
-  ): Promise<BatchResult> {
+  async processVehicles(vehicleLinks: any[], mainPage: Page): Promise<ParallelResult> {
     const startTime = Date.now();
-    const results: VehicleResult[] = [];
-    let processedCount = 0;
-    let failedCount = 0;
+    this.logger.info(`🔄 Starting parallel processing of ${vehicleLinks.length} vehicles with ${this.config.maxConcurrency} workers`);
 
-    this.logger.info(`Starting parallel processing of ${vehicles.length} vehicles`, {
-      maxConcurrency: this.config.maxConcurrency,
-      batchSize: this.config.batchSize
-    });
-
-    // Process in batches to avoid overwhelming the system
-    for (let i = 0; i < vehicles.length; i += this.config.batchSize) {
-      const batch = vehicles.slice(i, i + this.config.batchSize);
-      const batchResults = await this.processConcurrentBatch(batch, processFunc);
-      
-      results.push(...batchResults);
-      processedCount += batchResults.length;
-      failedCount += batchResults.filter(r => r.status === 'failed').length;
-
-      // Check error threshold
-      if (options.abortOnError && failedCount / processedCount > this.config.errorThreshold) {
-        this.logger.error(`Error threshold exceeded: ${failedCount}/${processedCount} failed`);
-        
-        // Mark remaining vehicles as skipped
-        const remaining = vehicles.slice(i + this.config.batchSize);
-        results.push(...remaining.map(v => ({
-          vehicle: v,
-          status: 'skipped' as const,
-          error: new Error('Batch processing aborted due to error threshold')
-        })));
-        
-        break;
-      }
-
-      this.logger.info(`Batch ${Math.floor(i / this.config.batchSize) + 1} completed`, {
-        processed: batchResults.length,
-        successful: batchResults.filter(r => r.status === 'success').length,
-        failed: batchResults.filter(r => r.status === 'failed').length
-      });
-    }
-
-    const totalDuration = Date.now() - startTime;
-    const successCount = results.filter(r => r.status === 'success').length;
-
-    const batchResult: BatchResult = {
-      results,
-      successRate: successCount / results.length,
-      totalDuration,
-      averageDuration: totalDuration / results.length
+    const result: ParallelResult = {
+      success: false,
+      totalVehicles: vehicleLinks.length,
+      processedVehicles: 0,
+      failedVehicles: 0,
+      totalFeatures: 0,
+      processingTime: 0,
+      workerResults: [],
+      errors: []
     };
 
-    this.logger.info('Parallel processing completed', {
-      total: vehicles.length,
-      successful: successCount,
-      failed: failedCount,
-      skipped: results.filter(r => r.status === 'skipped').length,
-      duration: `${(totalDuration / 1000).toFixed(2)}s`,
-      successRate: `${(batchResult.successRate * 100).toFixed(1)}%`
-    });
+    try {
+      // Initialize worker pool
+      await this.workerPool.initialize(mainPage.context().browser()!);
 
-    return batchResult;
-  }
-
-  /**
-   * Process a concurrent batch with worker pool pattern
-   */
-  private async processConcurrentBatch(
-    vehicles: Vehicle[],
-    processFunc: (vehicle: Vehicle) => Promise<VehicleResult>
-  ): Promise<VehicleResult[]> {
-    const queue = [...vehicles];
-    const results: VehicleResult[] = [];
-    const workers: Promise<void>[] = [];
-
-    // Create worker pool
-    const workerCount = Math.min(this.config.maxConcurrency, vehicles.length);
-    for (let i = 0; i < workerCount; i++) {
-      workers.push(this.createWorker(i, queue, processFunc, results));
-    }
-
-    // Wait for all workers to complete
-    await Promise.all(workers);
-    return results;
-  }
-
-  /**
-   * Worker function that processes vehicles from the queue
-   */
-  private async createWorker(
-    workerId: number,
-    queue: Vehicle[],
-    processFunc: (vehicle: Vehicle) => Promise<VehicleResult>,
-    results: VehicleResult[]
-  ): Promise<void> {
-    while (queue.length > 0) {
-      const vehicle = queue.shift();
-      if (!vehicle) break;
-
-      const startTime = Date.now();
-      this.logger.debug(`Worker ${workerId} processing vehicle ${vehicle.vin}`);
-
-      try {
-        // Process with timeout
-        const result = await this.processWithTimeout(
-          () => this.processWithRetry(vehicle, processFunc),
-          this.config.timeout,
-          vehicle
-        );
-
-        result.duration = Date.now() - startTime;
-        results.push(result);
-
-        this.performanceMonitor.recordMetric('vehicle.processed', 1, {
-          status: result.status,
-          duration: result.duration,
-          workerId: workerId.toString()
-        });
-
-        this.logger.debug(`Worker ${workerId} completed vehicle ${vehicle.vin}`, {
-          status: result.status,
-          duration: `${(result.duration / 1000).toFixed(2)}s`
-        });
-
-      } catch (error) {
-        const errorResult: VehicleResult = {
-          vehicle,
-          status: 'failed',
-          error: error instanceof Error ? error : new Error(String(error)),
-          duration: Date.now() - startTime
-        };
-
-        results.push(errorResult);
-        this.errorReporter.reportError(error, { vehicle, workerId });
-
-        this.logger.error(`Worker ${workerId} failed for vehicle ${vehicle.vin}`, {
-          error: error instanceof Error ? error.message : String(error),
-          duration: `${(errorResult.duration / 1000).toFixed(2)}s`
-        });
-      }
-    }
-
-    this.logger.debug(`Worker ${workerId} completed`);
-  }
-
-  /**
-   * Process with retry logic
-   */
-  private async processWithRetry(
-    vehicle: Vehicle,
-    processFunc: (vehicle: Vehicle) => Promise<VehicleResult>
-  ): Promise<VehicleResult> {
-    let lastError: Error | undefined;
-
-    for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
-      try {
-        this.logger.debug(`Processing vehicle ${vehicle.vin} (attempt ${attempt}/${this.config.retryAttempts})`);
-        return await processFunc(vehicle);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+      // Split vehicles into batches for parallel processing
+      const batches = this.createBatches(vehicleLinks, this.config.batchSize);
+      
+      // Process batches in parallel
+      const workerPromises: Promise<WorkerResult>[] = [];
+      
+      for (let i = 0; i < Math.min(batches.length, this.config.maxConcurrency); i++) {
+        const batch = batches[i];
+        const workerId = `worker-${i + 1}`;
         
-        if (attempt < this.config.retryAttempts) {
-          this.logger.warn(`Retry ${attempt}/${this.config.retryAttempts} for vehicle ${vehicle.vin}`, {
-            error: lastError.message
-          });
+        const workerPromise = this.processWorkerBatch(workerId, batch, i);
+        workerPromises.push(workerPromise);
+      }
+
+      // Wait for all workers to complete
+      const workerResults = await Promise.allSettled(workerPromises);
+      
+      // Process results
+      for (const workerResult of workerResults) {
+        if (workerResult.status === 'fulfilled') {
+          const worker = workerResult.value;
+          result.workerResults.push(worker);
+          result.processedVehicles += worker.vehiclesProcessed;
+          result.totalFeatures += worker.featuresFound;
           
-          // Exponential backoff
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          if (!worker.success) {
+            result.failedVehicles += worker.errors.length;
+            result.errors.push(...worker.errors);
+          }
+        } else {
+          const errorResult = workerResult as PromiseRejectedResult;
+          result.errors.push(`Worker failed: ${errorResult.reason}`);
+          result.failedVehicles++;
         }
       }
+
+      // Calculate success
+      const successRate = result.processedVehicles / result.totalVehicles;
+      result.success = successRate >= (1 - this.config.errorThreshold);
+      
+      result.processingTime = Date.now() - startTime;
+      
+      this.logger.info(`✅ Parallel processing completed: ${result.processedVehicles}/${result.totalVehicles} vehicles (${(successRate * 100).toFixed(1)}% success)`);
+      
+      return result;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      result.errors.push(errorMessage);
+      this.logger.error(`❌ Parallel processing failed: ${errorMessage}`);
+      return result;
+    } finally {
+      await this.cleanup();
     }
-
-    return {
-      vehicle,
-      status: 'failed',
-      error: lastError || new Error('Unknown error')
-    };
   }
 
   /**
-   * Process with timeout protection
+   * Process a batch of vehicles in a single worker
    */
-  private async processWithTimeout(
-    processFunc: () => Promise<VehicleResult>,
-    timeout: number,
-    vehicle: Vehicle
-  ): Promise<VehicleResult> {
-    return Promise.race([
-      processFunc(),
-      new Promise<VehicleResult>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after ${timeout}ms`)), timeout)
-      )
-    ]).catch(error => ({
-      vehicle,
-      status: 'failed' as const,
-      error: error instanceof Error ? error : new Error(String(error))
-    }));
-  }
+  private async processWorkerBatch(workerId: string, vehicleBatch: any[], workerIndex: number): Promise<WorkerResult> {
+    const workerStartTime = Date.now();
+    this.logger.info(`👷 ${workerId}: Starting batch of ${vehicleBatch.length} vehicles`);
 
-  /**
-   * Get current configuration
-   */
-  getConfig(): Required<ProcessorConfig> {
-    return { ...this.config };
-  }
-
-  /**
-   * Update configuration
-   */
-  updateConfig(config: Partial<ProcessorConfig>): void {
-    this.config = {
-      ...this.config,
-      ...config
+    const result: WorkerResult = {
+      workerId,
+      vehiclesProcessed: 0,
+      featuresFound: 0,
+      processingTime: 0,
+      success: true,
+      errors: []
     };
 
-    this.logger.info('Configuration updated', this.config);
+    let workerContext: BrowserContext | null = null;
+    let workerPage: Page | null = null;
+
+    try {
+      // Get isolated worker context
+      workerContext = await this.workerPool.getWorkerContext(workerId);
+      workerPage = await workerContext.newPage();
+      
+      // Navigate to inventory (inherit session from main page)
+      await this.coordinator.inheritSession(workerPage, workerId);
+
+      // Process each vehicle in the batch
+      for (let i = 0; i < vehicleBatch.length; i++) {
+        const vehicleLink = vehicleBatch[i];
+        
+        try {
+          const vehicleResult = await this.processVehicleInWorker(
+            workerPage, 
+            vehicleLink, 
+            workerId, 
+            i
+          );
+          
+          if (vehicleResult.success) {
+            result.vehiclesProcessed++;
+            result.featuresFound += vehicleResult.featuresFound;
+          } else {
+            result.errors.push(`Vehicle ${i + 1}: ${vehicleResult.error}`);
+          }
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          result.errors.push(`Vehicle ${i + 1}: ${errorMessage}`);
+          this.logger.warn(`${workerId}: Vehicle ${i + 1} failed: ${errorMessage}`);
+        }
+      }
+
+      result.success = result.errors.length === 0;
+      result.processingTime = Date.now() - workerStartTime;
+      
+      this.logger.info(`✅ ${workerId}: Completed ${result.vehiclesProcessed}/${vehicleBatch.length} vehicles`);
+      
+      return result;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      result.errors.push(errorMessage);
+      result.success = false;
+      this.logger.error(`❌ ${workerId}: Worker failed: ${errorMessage}`);
+      return result;
+    } finally {
+      if (workerPage) await workerPage.close();
+      if (workerContext) await this.workerPool.releaseWorkerContext(workerId);
+    }
+  }
+
+  /**
+   * Process single vehicle within worker context
+   */
+  private async processVehicleInWorker(
+    page: Page, 
+    vehicleLink: any, 
+    workerId: string, 
+    vehicleIndex: number
+  ): Promise<{ success: boolean; featuresFound: number; error?: string }> {
+    
+    try {
+      // Navigate to vehicle
+      await vehicleLink.locator.click();
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(3000);
+
+      // Use ParallelServiceAdapter for isolated execution
+      const { ParallelServiceAdapter } = await import('./ParallelServiceAdapter');
+      
+      const context = {
+        workerId,
+        vehicleIndex,
+        page,
+        logger: this.logger
+      };
+
+      // Execute complete vehicle workflow using your adapter
+      const results = await ParallelServiceAdapter.executeVehicleWorkflow(context);
+      
+      let featuresFound = 0;
+      if (results.windowSticker?.success && results.windowSticker.data?.features) {
+        featuresFound = results.windowSticker.data.features.length;
+      }
+
+      const success = results.validation.success && 
+                     (results.windowSticker?.success || false);
+
+      return {
+        success,
+        featuresFound,
+        error: success ? undefined : 'Vehicle processing failed'
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        featuresFound: 0,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Create batches for parallel processing
+   */
+  private createBatches(items: any[], batchSize: number): any[][] {
+    const batches: any[][] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      batches.push(items.slice(i, i + batchSize));
+    }
+    return batches;
+  }
+
+  /**
+   * Cleanup resources
+   */
+  private async cleanup(): Promise<void> {
+    await this.workerPool.cleanup();
+    await this.coordinator.cleanup();
   }
 }

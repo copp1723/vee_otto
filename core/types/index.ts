@@ -279,3 +279,45 @@ export interface PerformanceChartProps {
   data: PerformanceData[];
   loading?: boolean;
 }
+
+// Cherry-Picked Enhancement Types
+export interface VehicleLink {
+  locator: any; // Playwright Locator
+  text: string;
+  href: string;
+  onclick: string;
+  index: number;
+}
+
+export interface NavigationStrategy {
+  name: string;
+  execute: () => Promise<boolean>;
+}
+
+export interface NavigationResult {
+  success: boolean;
+  strategy?: string;
+  error?: string;
+  metadata?: any;
+  tabSuccess?: boolean;
+  windowOpened?: boolean;
+  processingTime?: number;
+}
+
+export interface VehicleProcessingResult {
+  success: boolean;
+  vehicleData?: any;
+  error?: string;
+  processingTime?: number;
+  featuresProcessed?: number;
+  strategy?: string;
+  vin?: string;
+  processed?: boolean;
+  featuresFound?: string[];
+  featuresUpdated?: string[];
+  errors?: string[];
+  windowStickerScraped?: boolean;
+  factoryEquipmentAccessed?: boolean;
+  featureUpdateReport?: any;
+  timestamp?: Date;
+}

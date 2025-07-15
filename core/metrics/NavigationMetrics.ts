@@ -14,6 +14,30 @@ export interface NavigationMetric {
   errorType?: string;
   url?: string;
   timestamp: Date;
+  workerId?: string;
+  batchId?: string;
+}
+
+export interface WorkerPerformanceMetric {
+  workerId: string;
+  vehicleCount: number;
+  totalTime: number;
+  avgTimePerVehicle: number;
+  successRate: number;
+  startTime: number;
+  endTime?: number;
+  status: 'active' | 'completed' | 'failed';
+}
+
+export interface ParallelMetric {
+  batchId: string;
+  workerId: string;
+  vehicleIndex: number;
+  strategy: string;
+  startTime: number;
+  endTime?: number;
+  status: 'started' | 'completed' | 'failed';
+  error?: string;
 }
 
 export interface NavigationPerformanceReport {
@@ -44,6 +68,9 @@ export interface NavigationPerformanceReport {
 export class NavigationMetrics {
   private static metrics: Map<string, NavigationMetric> = new Map();
   private static timeBreakdown: Map<string, any> = new Map();
+  private static workerMetrics: Map<string, WorkerPerformanceMetric> = new Map();
+  private static parallelMetrics: Map<string, ParallelMetric> = new Map();
+  private static batchMetrics: Map<string, any> = new Map();
 
   /**
    * Record a navigation attempt
@@ -84,6 +111,139 @@ export class NavigationMetrics {
     const existing = this.timeBreakdown.get(key) || {};
     existing[operation] = duration;
     this.timeBreakdown.set(key, existing);
+  }
+
+  /**
+   * Record which navigation strategy was used (Cherry-picked enhancement)
+   */
+  static recordNavigationStrategy(
+    vehicleIndex: number,
+    strategyName: string
+  ): void {
+    const key = `vehicle_${vehicleIndex}_strategy`;
+    this.timeBreakdown.set(key, strategyName);
+  }
+
+  /**
+   * Record parallel processing attempt
+   */
+  static recordParallelAttempt(
+    workerId: string,
+    vehicleIndex: number,
+    strategy: string,
+    batchId?: string
+  ): void {
+    const key = `${batchId || 'default'}_${workerId}_${vehicleIndex}`;
+    const metric: ParallelMetric = {
+      batchId: batchId || 'default',
+      workerId,
+      vehicleIndex,
+      strategy,
+      startTime: Date.now(),
+      status: 'started'
+    };
+    this.parallelMetrics.set(key, metric);
+  }
+
+  /**
+   * Record worker performance metrics
+   */
+  static recordWorkerPerformance(
+    workerId: string,
+    metrics: Partial<WorkerPerformanceMetric>
+  ): void {
+    const existing = this.workerMetrics.get(workerId) || {
+      workerId,
+      vehicleCount: 0,
+      totalTime: 0,
+      avgTimePerVehicle: 0,
+      successRate: 0,
+      startTime: Date.now(),
+      status: 'active'
+    };
+
+    const updated = {
+      ...existing,
+      ...metrics,
+      workerId
+    };
+
+    // Calculate derived metrics
+    if (updated.vehicleCount > 0) {
+      updated.avgTimePerVehicle = updated.totalTime / updated.vehicleCount;
+    }
+
+    this.workerMetrics.set(workerId, updated);
+  }
+
+  /**
+   * Complete parallel attempt
+   */
+  static completeParallelAttempt(
+    workerId: string,
+    vehicleIndex: number,
+    success: boolean,
+    error?: string,
+    batchId?: string
+  ): void {
+    const key = `${batchId || 'default'}_${workerId}_${vehicleIndex}`;
+    const metric = this.parallelMetrics.get(key);
+    
+    if (metric) {
+      metric.endTime = Date.now();
+      metric.status = success ? 'completed' : 'failed';
+      if (error) {
+        metric.error = error;
+      }
+    }
+  }
+
+  /**
+   * Generate parallel processing report
+   */
+  static generateParallelReport(): any {
+    const workers = Array.from(this.workerMetrics.values());
+    const parallelAttempts = Array.from(this.parallelMetrics.values());
+    
+    const activeWorkers = workers.filter(w => w.status === 'active');
+    const completedWorkers = workers.filter(w => w.status === 'completed');
+    const failedWorkers = workers.filter(w => w.status === 'failed');
+
+    const totalVehicles = workers.reduce((sum, w) => sum + w.vehicleCount, 0);
+    const totalTime = workers.reduce((sum, w) => sum + w.totalTime, 0);
+    const avgSuccessRate = workers.length > 0
+      ? workers.reduce((sum, w) => sum + w.successRate, 0) / workers.length
+      : 0;
+
+    const strategyBreakdown = parallelAttempts.reduce((acc, attempt) => {
+      acc[attempt.strategy] = (acc[attempt.strategy] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const errorAnalysis = parallelAttempts
+      .filter(a => a.status === 'failed' && a.error)
+      .reduce((acc, attempt) => {
+        const errorType = attempt.error?.split(':')[0] || 'Unknown';
+        acc[errorType] = (acc[errorType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+    return {
+      summary: {
+        totalWorkers: workers.length,
+        activeWorkers: activeWorkers.length,
+        completedWorkers: completedWorkers.length,
+        failedWorkers: failedWorkers.length,
+        totalVehicles,
+        totalTime,
+        avgTimePerVehicle: totalVehicles > 0 ? totalTime / totalVehicles : 0,
+        avgSuccessRate
+      },
+      workers: workers.sort((a, b) => b.avgTimePerVehicle - a.avgTimePerVehicle),
+      strategyBreakdown,
+      errorAnalysis,
+      recentAttempts: parallelAttempts.slice(-20) // Last 20 attempts
+    };
   }
 
   /**
