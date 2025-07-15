@@ -3,18 +3,20 @@ import { Auth2FAService, Auth2FAConfig } from '../../../core/services/Auth2FASer
 import { WindowStickerService } from '../../../core/services/WindowStickerService';
 import { InventoryFilterService } from '../../../core/services/InventoryFilterService';
 import { VehicleValidationService } from '../../../core/services/VehicleValidationService';
-import { Page } from 'playwright';
+import { CheckboxMappingService } from '../../../core/services/CheckboxMappingService';
+import { Page, Locator } from 'playwright';
 import { reliableClick } from '../../../core/utils/reliabilityUtils';
 import { vAutoSelectors } from '../vautoSelectors';
 import { TIMEOUTS, LIMITS, URLS } from '../../../core/config/constants';
-import { 
-  mapFeaturesToCheckboxes, 
-  determineCheckboxActions, 
+import {
+  mapFeaturesToCheckboxes,
+  determineCheckboxActions,
   generateFeatureReport,
   FeatureUpdateReport
 } from '../featureMapping';
 import { ReportingService, RunSummary, VehicleProcessingResult as ReportVehicleResult } from '../../../core/services/ReportingService';
 import { NavigationMetrics } from '../../../core/metrics/NavigationMetrics';
+import { VehicleLink, NavigationStrategy, NavigationResult } from '../../../core/types';
 
 /**
  * VAuto Task Definitions
@@ -345,6 +347,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
       ];
       
       let vehicleLinks: Locator[] = [];
+      let detailedLinks: VehicleLink[] = [];
       let usedSelector = '';
       
       for (const selector of vehicleLinkSelectors) {
@@ -367,15 +370,10 @@ export const processVehicleInventoryTask: TaskDefinition = {
           // Find the first meaningful link in each row
           const rowLinks = await row.locator('a').all();
           if (rowLinks.length > 0) {
-            // Skip VIN and stock number links
+            // Use validation service to identify vehicle detail links
+            const validationService = new VehicleValidationService(page, logger);
             for (const link of rowLinks) {
-              const href = await link.getAttribute('href') || '';
-              const onclick = await link.getAttribute('onclick') || '';
-              const text = await link.textContent() || '';
-              
-              // Check if this is likely the main vehicle link
-              if ((onclick.includes('Open') || onclick.includes('View') || onclick.includes('Show')) ||
-                  (text.length > 5 && !text.match(/^[A-Z0-9]{17}$/))) { // Not a VIN
+              if (await validationService.isVehicleDetailLink(link)) {
                 vehicleLinks.push(link);
                 break; // Only take first good link per row
               }
@@ -390,12 +388,23 @@ export const processVehicleInventoryTask: TaskDefinition = {
         logger.info(`✅ Found ${vehicleLinks.length} unique vehicle links (1 per row)`);
       }
       
-      // Additional debugging info
-      if (vehicleLinks.length > 0) {
-        const firstLinkText = await vehicleLinks[0].textContent();
-        const firstLinkHref = await vehicleLinks[0].getAttribute('href');
-        const firstLinkOnclick = await vehicleLinks[0].getAttribute('onclick');
-        logger.info(`📋 Sample link - Text: "${firstLinkText}", Href: "${firstLinkHref}", Onclick: "${firstLinkOnclick}"`);
+      // ENHANCEMENT 1: Enhanced vehicle link metadata collection
+      for (let i = 0; i < vehicleLinks.length; i++) {
+        const link = vehicleLinks[i];
+        detailedLinks.push({
+          locator: link,
+          text: await link.textContent() || '',
+          href: await link.getAttribute('href') || '',
+          onclick: await link.getAttribute('onclick') || '',
+          index: i
+        });
+      }
+      
+      // Enhanced debugging info with metadata
+      if (detailedLinks.length > 0) {
+        const firstLink = detailedLinks[0];
+        logger.info(`📋 Enhanced Sample Link - Text: "${firstLink.text}", Href: "${firstLink.href}", Onclick: "${firstLink.onclick}"`);
+        logger.info(`📊 Link Quality Assessment: ${detailedLinks.filter(link => link.onclick !== '').length}/${detailedLinks.length} links have onclick handlers`);
       }
       
       results.totalVehicles = vehicleLinks.length;
@@ -414,6 +423,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
         let errors: string[] = [];
         let tabSuccess = false;
         let navigationSuccess = false;
+        let vehicleData: any = null;
 
         try {
           logger.info(`Processing vehicle ${i + 1}/${vehiclesToProcess}...`);
@@ -464,7 +474,16 @@ export const processVehicleInventoryTask: TaskDefinition = {
           
           await page.screenshot({ path: `screenshots/vehicle-${i + 1}-details-page.png` });
 
-          logger.info('📋 On Vehicle Info page, preparing to access Factory Equipment...');
+          // Extract vehicle data
+          const validationService = new VehicleValidationService(page, logger);
+          const vehicleResult = await validationService.extractVehicleData();
+          vehicleData = vehicleResult.vehicleData;
+          
+          if (!vehicleResult.success) {
+            errors.push(`Failed to extract vehicle data: ${vehicleResult.error}`);
+          }
+
+          logger.info(`📋 On Vehicle Info page for ${vehicleData.vin}, preparing to access Factory Equipment...`);
           
           // Record tab access start time
           const tabStartTime = Date.now();
@@ -488,92 +507,106 @@ export const processVehicleInventoryTask: TaskDefinition = {
           await page.screenshot({ path: `screenshots/before-factory-tab.png` });
           logger.info('🛢 Navigating to Factory Equipment tab...');
           
-          // Enhanced tab navigation with multiple strategies
-          const tabNavigationStrategies = [
-            // Strategy 1: Try within iframe context first (as per workflow)
-            async () => {
-              if (factoryFrame) {
-                try {
-                  // The workflow specifies id=ext-gen201 for Factory Equipment tab
-                  await factoryFrame.locator('#ext-gen201').click();
-                  return true;
-                } catch (e) {
-                  // Try text-based selector in iframe
-                  await factoryFrame.locator('//a[contains(text(), "Factory Equipment")] | //span[contains(text(), "Factory Equipment")]').first().click();
-                  return true;
-                }
-              }
-              return false;
-            },
-            
-            // Strategy 2: Direct page click (if not in iframe)
-            async () => {
-              // The workflow specifies id=ext-gen201
-              return await reliableClick(page, '#ext-gen201', 'Factory Equipment Tab');
-            },
-            
-            // Strategy 3: Alternative selectors
-            async () => {
-              const selectors = [
-                vAutoSelectors.vehicleDetails.factoryEquipmentTab,
-                '#ext-gen175', // Alternative ID from selectors
-                '//a[contains(text(), "Factory Equipment")]',
-                '//span[contains(text(), "Factory Equipment")]',
-                '//div[contains(@class, "x-tab") and contains(text(), "Factory Equipment")]'
-              ];
-              for (const selector of selectors) {
-                if (await reliableClick(page, selector, 'Factory Equipment Tab')) {
-                  return true;
-                }
-              }
-              return false;
-            },
-            
-            // Strategy 4: JavaScript click for ExtJS
-            async () => {
-              return await page.evaluate(() => {
-                // Try the specific ID from workflow first
-                const tabElement = document.querySelector('#ext-gen201') ||
-                                  document.querySelector('#ext-gen175') || 
-                                  document.querySelector('a[id*="ext-gen"][href*="Factory"]') ||
-                                  Array.from(document.querySelectorAll('.x-tab-strip-text')).find(el => el.textContent?.includes('Factory'));
-                if (tabElement) {
-                  (tabElement as HTMLElement).click();
-                  return true;
-                }
-                return false;
-              });
-            },
-            
-            // Strategy 4: Click by position (Factory Equipment is often 3rd or 4th tab)
-            async () => {
-              const tabs = await page.locator('//ul[contains(@class, "x-tab-strip")]//a').all();
-              if (tabs.length >= 3) {
-                for (let i = 2; i < Math.min(tabs.length, 5); i++) {
-                  const tabText = await tabs[i].textContent();
-                  if (tabText?.includes('Factory')) {
-                    await tabs[i].click();
+          // ENHANCEMENT 2: Named navigation strategies for better debugging/metrics
+          const tabNavigationStrategies: NavigationStrategy[] = [
+            {
+              name: 'iframe-id-selector',
+              execute: async () => {
+                if (factoryFrame) {
+                  try {
+                    // The workflow specifies id=ext-gen201 for Factory Equipment tab
+                    await factoryFrame.locator('#ext-gen201').click();
+                    return true;
+                  } catch (e) {
+                    // Try text-based selector in iframe
+                    await factoryFrame.locator('//a[contains(text(), "Factory Equipment")] | //span[contains(text(), "Factory Equipment")]').first().click();
                     return true;
                   }
                 }
+                return false;
               }
-              return false;
+            },
+            
+            {
+              name: 'direct-id-selector',
+              execute: async () => {
+                // The workflow specifies id=ext-gen201
+                return await reliableClick(page, '#ext-gen201', 'Factory Equipment Tab');
+              }
+            },
+            
+            {
+              name: 'alternative-selectors',
+              execute: async () => {
+                const selectors = [
+                  vAutoSelectors.vehicleDetails.factoryEquipmentTab,
+                  '#ext-gen175', // Alternative ID from selectors
+                  '//a[contains(text(), "Factory Equipment")]',
+                  '//span[contains(text(), "Factory Equipment")]',
+                  '//div[contains(@class, "x-tab") and contains(text(), "Factory Equipment")]'
+                ];
+                for (const selector of selectors) {
+                  if (await reliableClick(page, selector, 'Factory Equipment Tab')) {
+                    return true;
+                  }
+                }
+                return false;
+              }
+            },
+            
+            {
+              name: 'javascript-extjs-click',
+              execute: async () => {
+                return await page.evaluate(() => {
+                  // Try the specific ID from workflow first
+                  const tabElement = document.querySelector('#ext-gen201') ||
+                                    document.querySelector('#ext-gen175') ||
+                                    document.querySelector('a[id*="ext-gen"][href*="Factory"]') ||
+                                    Array.from(document.querySelectorAll('.x-tab-strip-text')).find(el => el.textContent?.includes('Factory'));
+                  if (tabElement) {
+                    (tabElement as HTMLElement).click();
+                    return true;
+                  }
+                  return false;
+                });
+              }
+            },
+            
+            {
+              name: 'position-based-click',
+              execute: async () => {
+                const tabs = await page.locator('//ul[contains(@class, "x-tab-strip")]//a').all();
+                if (tabs.length >= 3) {
+                  for (let i = 2; i < Math.min(tabs.length, 5); i++) {
+                    const tabText = await tabs[i].textContent();
+                    if (tabText?.includes('Factory')) {
+                      await tabs[i].click();
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              }
             }
           ];
           
+          let usedStrategy = '';
           for (const strategy of tabNavigationStrategies) {
             try {
-              tabSuccess = await strategy();
+              tabSuccess = await strategy.execute();
               if (tabSuccess) {
-              await page.waitForTimeout(2000);
-              await page.screenshot({ path: `screenshots/after-factory-tab.png` });
-              logger.info('✅ Successfully navigated to Factory Equipment tab');
-              
-            // Record tab access time
-            NavigationMetrics.recordOperationTime(i, 'tabAccess', Date.now() - tabStartTime);
-            break;
+                usedStrategy = strategy.name;
+                NavigationMetrics.recordNavigationStrategy(i, strategy.name);
+                await page.waitForTimeout(2000);
+                await page.screenshot({ path: `screenshots/after-factory-tab.png` });
+                logger.info(`✅ Successfully navigated to Factory Equipment tab using strategy: ${strategy.name}`);
+                
+                // Record tab access time
+                NavigationMetrics.recordOperationTime(i, 'tabAccess', Date.now() - tabStartTime);
+                break;
               }
             } catch (e) {
+              logger.debug(`Strategy ${strategy.name} failed: ${e}`);
               continue;
             }
           }
@@ -679,12 +712,21 @@ export const processVehicleInventoryTask: TaskDefinition = {
               logger.info('Features found: ' + featuresFound.slice(0, 5).join(', ') + (featuresFound.length > 5 ? '...' : ''));
               processed = true;
               
-              // TODO: Map features to checkboxes and update them
-              logger.warn('Checkbox mapping and updating not yet implemented');
-              // When implemented, record checkbox update time:
-              // const checkboxStartTime = Date.now();
-              // ... checkbox update logic ...
-              // NavigationMetrics.recordOperationTime(i, 'checkboxUpdate', Date.now() - checkboxStartTime);
+              // Map features to checkboxes and update them
+              const checkboxStartTime = Date.now();
+              const checkboxService = new CheckboxMappingService(page, logger);
+              const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(featuresFound);
+              
+              if (checkboxResult.success) {
+                featuresUpdated = checkboxResult.actions
+                  .filter(action => action.action !== 'none')
+                  .map(action => `${action.label} (${action.action})`);
+                logger.info(`✅ Updated ${checkboxResult.checkboxesUpdated} checkboxes`);
+              } else {
+                errors.push(...checkboxResult.errors);
+              }
+              
+              NavigationMetrics.recordOperationTime(i, 'checkboxUpdate', Date.now() - checkboxStartTime);
             } else {
               logger.warn('No features extracted from window sticker content');
               errors.push('Failed to extract window sticker content');
@@ -699,7 +741,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           errors.push(errorMessage);
-          logger.error(`Failed to process vehicle ${i + 1}:`, error);
+          logger.error(`Failed to process vehicle ${i + 1} (${vehicleData?.vin || 'UNKNOWN'}):`, error);
           
           // Recovery: Try to get back to inventory page
           try {
@@ -726,7 +768,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
         }
 
         results.vehicles.push({
-          vin: 'UNKNOWN', // VIN extraction handled in processVehicleFeatures
+          vin: vehicleData?.vin || 'UNKNOWN',
           processed,
           featuresFound,
           featuresUpdated,
@@ -735,7 +777,9 @@ export const processVehicleInventoryTask: TaskDefinition = {
           factoryEquipmentAccessed: tabSuccess,
           featureUpdateReport: null,
           processingTime: Date.now() - vehicleStartTime,
-          timestamp: new Date()
+          timestamp: new Date(),
+          vehicleData, // Include full vehicle data
+          success: processed
         });
       }
       
@@ -784,10 +828,25 @@ export const processVehicleInventoryTask: TaskDefinition = {
       // Log unmatched features for future improvements
       await reportingService.logUnmatchedFeatures(results.vehicles);
       
-      return {
-        ...results,
-        reportPaths
+      // ENHANCEMENT 3: Structured result objects with error context
+      const navigationResult: NavigationResult = {
+        success: results.processedVehicles > 0,
+        strategy: usedSelector || 'unknown',
+        metadata: {
+          totalVehicles: results.totalVehicles,
+          processedVehicles: results.processedVehicles,
+          failedVehicles: results.failedVehicles,
+          windowStickersScraped: results.windowStickersScraped,
+          totalFeaturesFound: results.totalFeaturesFound,
+          totalCheckboxesUpdated: results.totalCheckboxesUpdated,
+          reportPaths,
+          navigationMetrics: NavigationMetrics.generateReport()
+        },
+        processingTime: Date.now() - startTime.getTime(),
+        error: results.errors.length > 0 ? `${results.errors.length} errors occurred` : undefined
       };
+      
+      return navigationResult;
       
     } catch (error) {
       logger.error('Vehicle processing failed:', error);
@@ -980,33 +1039,21 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
             if (checkboxStates.length > 0) {
               logger.info(`Found ${checkboxStates.length} checkboxes to process`);
               
-              // Determine which checkboxes to update
-              const availableLabels = checkboxStates.map(cb => cb.label);
-              const featureMatches = mapFeaturesToCheckboxes(result.featuresFound, availableLabels);
-              const checkboxActions = determineCheckboxActions(result.featuresFound, checkboxStates);
+              // Use CheckboxMappingService for checkbox updates
+              const checkboxService = new CheckboxMappingService(page, logger);
+              const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(result.featuresFound);
               
-              // Apply checkbox updates
-              let updatedCount = 0;
-              for (const action of checkboxActions) {
-                if (action.action !== 'none') {
-                  try {
-                    const success = false; // TODO: Implement checkbox update
-                    if (success) {
-                      updatedCount++;
-                      result.featuresUpdated.push(`${action.label} (${action.action})`);
-                      logger.info(`✅ ${action.action === 'check' ? 'Checked' : 'Unchecked'}: ${action.label}`);
-                    }
-                  } catch (error) {
-                    logger.warn(`Failed to update checkbox ${action.label}:`, error);
-                    result.errors.push(`Checkbox update failed: ${action.label}`);
-                  }
-                }
+              if (checkboxResult.success) {
+                result.featuresUpdated = checkboxResult.actions
+                  .filter(action => action.action !== 'none')
+                  .map(action => `${action.label} (${action.action})`);
+                logger.info(`📊 Updated ${checkboxResult.checkboxesUpdated} checkboxes`);
+              } else {
+                result.errors.push(...checkboxResult.errors);
               }
               
-              logger.info(`📊 Updated ${updatedCount} checkboxes`);
-              
               // Save changes if any updates were made
-              if (updatedCount > 0) {
+              if (checkboxResult.checkboxesUpdated > 0) {
                 try {
                   logger.info('💾 Saving factory equipment changes...');
                   
@@ -1050,8 +1097,8 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
               result.featureUpdateReport = generateFeatureReport(
                 vin,
                 result.featuresFound,
-                featureMatches,
-                checkboxActions,
+                [], // FeatureMatch[] - not available in this context
+                checkboxResult.actions || [],
                 result.errors
               );
               
@@ -1098,8 +1145,17 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
     // Update checkboxes based on features (if not in read-only mode)
     if (!config.readOnlyMode && result.factoryEquipmentAccessed) {
       try {
-        result.featuresUpdated = await updateFeatureCheckboxes(page, result.featuresFound);
-        logger.info(`Updated ${result.featuresUpdated.length} feature checkboxes`);
+        const checkboxService = new CheckboxMappingService(page, logger);
+        const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(result.featuresFound);
+        
+        if (checkboxResult.success) {
+          result.featuresUpdated = checkboxResult.actions
+            .filter(action => action.action !== 'none')
+            .map(action => `${action.label} (${action.action})`);
+          logger.info(`Updated ${checkboxResult.checkboxesUpdated} feature checkboxes`);
+        } else {
+          result.errors.push(...checkboxResult.errors);
+        }
       } catch (error) {
         result.errors.push(`Checkbox update failed: ${error}`);
       }
@@ -1116,149 +1172,7 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
   return result;
 }
 
-/**
- * Fuzzy string matching utility functions
- */
-function calculateSimilarity(str1: string, str2: string): number {
-  const distance = levenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
-  const maxLength = Math.max(str1.length, str2.length);
-  return maxLength === 0 ? 1 : (maxLength - distance) / maxLength;
-}
-
-function levenshteinDistance(str1: string, str2: string): number {
-  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
-  
-  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
-  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-  
-  for (let j = 1; j <= str2.length; j++) {
-    for (let i = 1; i <= str1.length; i++) {
-      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,
-        matrix[j - 1][i] + 1,
-        matrix[j - 1][i - 1] + indicator
-      );
-    }
-  }
-  
-  return matrix[str2.length][str1.length];
-}
-
-function findBestMatch(target: string, candidates: string[], threshold: number = 0.75): string | null {
-  let bestMatch: string | null = null;
-  let bestScore = 0;
-  
-  for (const candidate of candidates) {
-    const score = calculateSimilarity(target, candidate);
-    if (score > bestScore && score >= threshold) {
-      bestScore = score;
-      bestMatch = candidate;
-    }
-  }
-  
-  return bestMatch;
-}
-
-/**
- * Helper function to update feature checkboxes with fuzzy matching
- */
-async function updateFeatureCheckboxes(page: Page, features: string[]): Promise<string[]> {
-  const updatedFeatures: string[] = [];
-  
-  try {
-    // Get all available checkbox labels on the page
-    const checkboxLabels = await getAllCheckboxLabels(page);
-    
-    for (const feature of features) {
-      try {
-        // First try exact match
-        let matchingLabel = checkboxLabels.find(label =>
-          label.toLowerCase().includes(feature.toLowerCase()) ||
-          feature.toLowerCase().includes(label.toLowerCase())
-        );
-        
-        // If no exact match, try fuzzy matching
-        if (!matchingLabel) {
-          const fuzzyMatch = findBestMatch(feature, checkboxLabels, 0.75);
-          if (fuzzyMatch) {
-            matchingLabel = fuzzyMatch;
-          }
-        }
-        
-        if (matchingLabel) {
-          // Find and update the checkbox
-          const success = await updateCheckboxByLabel(page, matchingLabel);
-          if (success) {
-            updatedFeatures.push(`${feature} → ${matchingLabel}`);
-          }
-        }
-        
-      } catch (error) {
-        console.warn(`Failed to update feature ${feature}:`, error);
-      }
-    }
-    
-  } catch (error) {
-    console.error('Feature checkbox update failed:', error);
-  }
-  
-  return updatedFeatures;
-}
-
-/**
- * Get all checkbox labels on the page
- */
-async function getAllCheckboxLabels(page: Page): Promise<string[]> {
-  const labels: string[] = [];
-  
-  try {
-    const checkboxes = await page.locator('input[type="checkbox"]').all();
-    
-    for (const checkbox of checkboxes) {
-      const label = await getCheckboxLabel(page, checkbox);
-      if (label && label !== 'Unknown Label') {
-        labels.push(label);
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to get checkbox labels:', error);
-  }
-  
-  return labels;
-}
-
-/**
- * Update a specific checkbox by its label
- */
-async function updateCheckboxByLabel(page: Page, labelText: string): Promise<boolean> {
-  try {
-    // Try different selector patterns for finding checkbox by label
-    const selectors = [
-      `//label[contains(text(), "${labelText}")]/input[@type="checkbox"]`,
-      `//label[contains(text(), "${labelText}")]/preceding-sibling::input[@type="checkbox"]`,
-      `//label[contains(text(), "${labelText}")]/following-sibling::input[@type="checkbox"]`,
-      `//input[@type="checkbox" and following-sibling::*[contains(text(), "${labelText}")]]`,
-      `//div[contains(text(), "${labelText}")]/preceding-sibling::input[@type="checkbox"]`,
-      `//div[contains(text(), "${labelText}")]/following-sibling::input[@type="checkbox"]`
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const checkbox = page.locator(selector).first();
-        if (await checkbox.isVisible()) {
-          await checkbox.click();
-          return true;
-        }
-      } catch (e) {
-        // Try next selector
-      }
-    }
-  } catch (error) {
-    console.warn(`Failed to update checkbox by label "${labelText}":`, error);
-  }
-  return false;
-}
+// REMOVED: Fuzzy matching and checkbox update functions - moved to CheckboxMappingService
 
 /**
  * All VAuto tasks in dependency order

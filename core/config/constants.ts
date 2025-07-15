@@ -104,3 +104,29 @@ export const LOGGING = {
   MAX_FILE_SIZE: '10m',
   MAX_FILES: 5,
 };
+
+export const PARALLEL_CONFIG = {
+  // Maximum concurrent workers
+  MAX_CONCURRENCY: parseInt(process.env.MAX_PARALLEL_WORKERS || '3', 10),
+  
+  // Worker timeout in milliseconds
+  WORKER_TIMEOUT: 300000, // 5 minutes
+  
+  // Error threshold before worker restart (0.5 = 50% failure rate)
+  ERROR_THRESHOLD: 0.5,
+  
+  // Batch size for processing
+  BATCH_SIZE: parseInt(process.env.PARALLEL_BATCH_SIZE || '10', 10),
+  
+  // Worker resource limits
+  MAX_MEMORY_PER_WORKER: 512 * 1024 * 1024, // 512MB
+  MAX_PAGES_PER_WORKER: 5,
+  
+  // Retry configuration
+  MAX_WORKER_RETRIES: 3,
+  WORKER_RETRY_DELAY: 5000, // 5 seconds
+  
+  // Health check intervals
+  HEALTH_CHECK_INTERVAL: 30000, // 30 seconds
+  WORKER_IDLE_TIMEOUT: 60000, // 1 minute
+};
