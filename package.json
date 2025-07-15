@@ -40,6 +40,7 @@
     "test:enhanced": "ts-node scripts/test-enhanced-workflow.ts",
     "test:enhanced-manual": "HEADLESS=false SLOW_MO=1000 ts-node scripts/test-enhanced-workflow.ts",
     "test:navigation": "ts-node scripts/test-navigation-only.ts",
+    "test:visual-render": "ts-node scripts/test-visual-render.ts",
     "setup:ngrok": "node scripts/dev/setup-ngrok.js",
     "render:build": "bash scripts/render-build.sh",
     "render:start": "node dist/src/server.js",
