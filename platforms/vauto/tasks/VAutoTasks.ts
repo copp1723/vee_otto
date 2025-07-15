@@ -4,6 +4,7 @@ import { WindowStickerService } from '../../../core/services/WindowStickerServic
 import { InventoryFilterService } from '../../../core/services/InventoryFilterService';
 import { VehicleValidationService } from '../../../core/services/VehicleValidationService';
 import { CheckboxMappingService } from '../../../core/services/CheckboxMappingService';
+import { SemanticFeatureMappingService } from '../../../core/services/SemanticFeatureMappingService';
 import { Page, Locator } from 'playwright';
 import { reliableClick } from '../../../core/utils/reliabilityUtils';
 import { vAutoSelectors } from '../vautoSelectors';
@@ -714,7 +715,14 @@ export const processVehicleInventoryTask: TaskDefinition = {
               
               // Map features to checkboxes and update them
               const checkboxStartTime = Date.now();
-              const checkboxService = new CheckboxMappingService(page, logger);
+              const useSemantic = config.useSemanticFeatureMapping === true;
+              const checkboxService = useSemantic
+                ? new SemanticFeatureMappingService(page, logger, {
+                    similarityThreshold: config.semanticSimilarityThreshold || 0.8,
+                    useSemanticMatching: true,
+                    maxResults: config.semanticMaxResults || 5
+                  })
+                : new CheckboxMappingService(page, logger);
               const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(featuresFound);
               
               if (checkboxResult.success) {
@@ -1039,8 +1047,15 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
             if (checkboxStates.length > 0) {
               logger.info(`Found ${checkboxStates.length} checkboxes to process`);
               
-              // Use CheckboxMappingService for checkbox updates
-              const checkboxService = new CheckboxMappingService(page, logger);
+              // Use semantic or fuzzy mapping for checkbox updates
+              const useSemantic = config.useSemanticFeatureMapping === true;
+              const checkboxService = useSemantic
+                ? new SemanticFeatureMappingService(page, logger, {
+                    similarityThreshold: config.semanticSimilarityThreshold || 0.8,
+                    useSemanticMatching: true,
+                    maxResults: config.semanticMaxResults || 5
+                  })
+                : new CheckboxMappingService(page, logger);
               const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(result.featuresFound);
               
               if (checkboxResult.success) {
@@ -1145,7 +1160,14 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
     // Update checkboxes based on features (if not in read-only mode)
     if (!config.readOnlyMode && result.factoryEquipmentAccessed) {
       try {
-        const checkboxService = new CheckboxMappingService(page, logger);
+        const useSemantic = config.useSemanticFeatureMapping === true;
+        const checkboxService = useSemantic
+          ? new SemanticFeatureMappingService(page, logger, {
+              similarityThreshold: config.semanticSimilarityThreshold || 0.8,
+              useSemanticMatching: true,
+              maxResults: config.semanticMaxResults || 5
+            })
+          : new CheckboxMappingService(page, logger);
         const checkboxResult = await checkboxService.mapAndUpdateCheckboxes(result.featuresFound);
         
         if (checkboxResult.success) {

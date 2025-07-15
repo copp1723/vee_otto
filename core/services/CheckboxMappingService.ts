@@ -23,8 +23,8 @@ export interface CheckboxMappingResult {
 }
 
 export class CheckboxMappingService {
-  private page: Page;
-  private logger: any;
+  protected page: Page;
+  protected logger: any;
 
   constructor(page: Page, logger: any) {
     this.page = page;
@@ -98,7 +98,7 @@ export class CheckboxMappingService {
   /**
    * Get all checkbox states on the page
    */
-  private async getAllCheckboxStates(): Promise<CheckboxState[]> {
+  protected async getAllCheckboxStates(): Promise<CheckboxState[]> {
     const checkboxStates: CheckboxState[] = [];
 
     try {
@@ -151,7 +151,7 @@ export class CheckboxMappingService {
   /**
    * Get label for a checkbox
    */
-  private async getCheckboxLabel(checkbox: Locator): Promise<string> {
+  protected async getCheckboxLabel(checkbox: Locator): Promise<string> {
     try {
       // Try multiple strategies to find the label
       const strategies = [
@@ -234,7 +234,7 @@ export class CheckboxMappingService {
   /**
    * Map features to checkbox actions using fuzzy matching
    */
-  private mapFeaturesToCheckboxes(features: string[], checkboxStates: CheckboxState[]): CheckboxAction[] {
+  protected mapFeaturesToCheckboxes(features: string[], checkboxStates: CheckboxState[]): CheckboxAction[] {
     const actions: CheckboxAction[] = [];
     const availableLabels = checkboxStates.map(cb => cb.label);
 
@@ -264,7 +264,7 @@ export class CheckboxMappingService {
   /**
    * Update a specific checkbox
    */
-  private async updateCheckbox(action: CheckboxAction, checkboxStates: CheckboxState[]): Promise<boolean> {
+  protected async updateCheckbox(action: CheckboxAction, checkboxStates: CheckboxState[]): Promise<boolean> {
     const checkbox = checkboxStates.find(cb => cb.id === action.id);
     if (!checkbox) {
       return false;
@@ -288,7 +288,7 @@ export class CheckboxMappingService {
   /**
    * Find best matching string using fuzzy matching
    */
-  private findBestMatch(target: string, candidates: string[], threshold: number = 0.75): string | null {
+  protected findBestMatch(target: string, candidates: string[], threshold: number = 0.75): string | null {
     let bestMatch: string | null = null;
     let bestScore = 0;
 
@@ -306,7 +306,7 @@ export class CheckboxMappingService {
   /**
    * Calculate similarity between two strings using Levenshtein distance
    */
-  private calculateSimilarity(str1: string, str2: string): number {
+  protected calculateSimilarity(str1: string, str2: string): number {
     const distance = this.levenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
     const maxLength = Math.max(str1.length, str2.length);
     return maxLength === 0 ? 1 : (maxLength - distance) / maxLength;
@@ -315,7 +315,7 @@ export class CheckboxMappingService {
   /**
    * Calculate Levenshtein distance between two strings
    */
-  private levenshteinDistance(str1: string, str2: string): number {
+  protected levenshteinDistance(str1: string, str2: string): number {
     const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
 
     for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;

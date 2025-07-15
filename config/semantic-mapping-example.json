@@ -1,0 +1,8 @@
+{
+  "useSemanticFeatureMapping": true,
+  "semanticSimilarityThreshold": 0.85,
+  "semanticMaxResults": 3,
+  "enableSemanticABTesting": false,
+  "readOnlyMode": false,
+  "maxVehiclesToProcess": 10
+}
