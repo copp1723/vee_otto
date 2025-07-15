@@ -1,4 +1,5 @@
-import { createWorker, Worker } from 'tesseract.js';
+import { createWorker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import { Logger } from '../../core/utils/Logger';
 import fs from 'fs-extra';
 import path from 'path';
@@ -49,13 +50,15 @@ export class OCRService {
       // Ensure cache directory exists
       await fs.ensureDir(this.config.cacheDir!);
 
-      // Update worker creation with proper paths if needed
-      this.worker = await createWorker(this.config.language!);
+      // Create worker with language - v6 API is simplified
+      this.logger.debug('Creating tesseract worker with language:', this.config.language);
+      this.worker = await createWorker(this.config.language!, 1, {
+        cachePath: this.config.cacheDir,
+        logger: this.config.logger ? (m: any) => this.logger.debug('Tesseract:', m) : undefined
+      });
 
-      // Initialize with language
-      await this.worker.load();
-      await this.worker.loadLanguage(this.config.language!);
-      await this.worker.initialize(this.config.language!);
+      // In tesseract.js v6, worker is auto-initialized after createWorker
+      this.logger.debug('Worker created successfully, skipping manual initialization');
 
       this.isInitialized = true;
       this.logger.info('OCR service initialized successfully');
