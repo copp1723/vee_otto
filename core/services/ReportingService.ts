@@ -14,6 +14,8 @@ export interface VehicleProcessingResult {
   errors: string[];
   processingTime: number;
   timestamp: Date;
+  vehicleData?: any;
+  success?: boolean;
 }
 
 export interface RunSummary {

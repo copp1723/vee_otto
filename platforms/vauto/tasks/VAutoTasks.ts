@@ -52,16 +52,26 @@ export const basicLoginTask: TaskDefinition = {
     
     // Enter username
     await page.fill(vAutoSelectors.login.username, config.username);
-    await reliableClick(page, vAutoSelectors.login.nextButton, 'Next Button');
+    await page.click(vAutoSelectors.login.nextButton);
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
     
     // Enter password
     await page.fill(vAutoSelectors.login.password, config.password);
     await page.screenshot({ path: `screenshots/vauto-credentials-entered.png` });
-    await reliableClick(page, vAutoSelectors.login.submit, 'Submit Button');
+    await page.click(vAutoSelectors.login.submit);
     
-    // Wait for response
+    // Wait longer for redirect to 2FA or dashboard
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(5000);
+    
+    const currentUrl = page.url();
+    logger.info(`Post-login URL: ${currentUrl}`);
+    
+    // Check if we're redirected to 2FA or dashboard
+    if (currentUrl.includes('signin') && !currentUrl.includes('dashboard')) {
+      logger.info('Still on signin page - 2FA likely required');
+    }
     
     logger.info('✅ Basic login completed');
     
@@ -88,11 +98,31 @@ export const twoFactorAuthTask: TaskDefinition = {
   async execute(context: TaskContext): Promise<any> {
     const { page, config, logger } = context;
     
-    logger.info('🔐 Starting 2FA authentication...');
+    logger.info('🔐 Checking if 2FA is required...');
+    
+    const currentUrl = page.url();
+    logger.info(`Current URL: ${currentUrl}`);
+    
+    // Check if we're actually on a 2FA page
+    if (!currentUrl.includes('signin') || currentUrl.includes('dashboard')) {
+      logger.info('✅ No 2FA required - already authenticated');
+      return {
+        skipped: true,
+        reason: 'No 2FA required',
+        url: currentUrl,
+        timestamp: new Date()
+      };
+    }
+    
+    // Wait for the page to be in a stable state before proceeding.
+    // 'domcontentloaded' is a reliable event that fires when the page is ready to be manipulated.
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+    
+    logger.info('🔐 2FA required - starting authentication...');
     
     // Configure 2FA service with your working settings
     const auth2FAConfig: Auth2FAConfig = {
-      webhookUrl: config.webhookUrl || `${process.env.PUBLIC_URL || 'http://localhost:3000'}/api/2fa/latest`,
+      webhookUrl: config.webhookUrl || process.env.WEBHOOK_URL || 'https://vee-otto-api.onrender.com/api/2fa/latest',
       timeout: TIMEOUTS.TWO_FACTOR,
       codeInputSelector: vAutoSelectors.login.otpInput,
       submitSelector: vAutoSelectors.login.otpSubmit,
@@ -498,23 +528,23 @@ export const processVehicleInventoryTask: TaskDefinition = {
           const tabStartTime = Date.now();
           
           // STEP 1: Select the GaugePageIFrame as per workflow
-          logger.info('🖼️ Selecting GaugePageIFrame...');
+          logger.info('🕵️‍♂️ STEP 1/5: Attempting to select GaugePageIFrame...');
           let factoryFrame: import('playwright').FrameLocator | null = null;
           try {
-            // Try iframe by ID first
             factoryFrame = page.frameLocator('#GaugePageIFrame');
-            // Verify frame exists by trying to access an element
             if (factoryFrame) {
               await factoryFrame.locator('body').waitFor({ timeout: TIMEOUTS.NAVIGATION });
+              logger.info('✅ Found and verified GaugePageIFrame.');
+            } else {
+              logger.warn('Could not locate GaugePageIFrame.');
             }
-            logger.info('✅ Successfully selected GaugePageIFrame');
           } catch (frameError) {
-            logger.warn('Could not access GaugePageIFrame, continuing without frame context');
-            // Continue without frame - some implementations might not use iframe
+            logger.error('❌ Could not find or access #GaugePageIFrame.', frameError);
+            logger.warn('Continuing without frame context...');
           }
           
           await page.screenshot({ path: `screenshots/before-factory-tab.png` });
-          logger.info('🛢 Navigating to Factory Equipment tab...');
+          logger.info('🕵️‍♂️ STEP 2/5: Navigating to Factory Equipment tab...');
           
           // ENHANCEMENT 2: Named navigation strategies for better debugging/metrics
           const tabNavigationStrategies: NavigationStrategy[] = [
@@ -602,6 +632,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
           let usedStrategy = '';
           for (const strategy of tabNavigationStrategies) {
             try {
+              logger.info(`   ▶️ Executing tab navigation strategy: ${strategy.name}`);
               tabSuccess = await strategy.execute();
               if (tabSuccess) {
                 usedStrategy = strategy.name;
@@ -609,13 +640,13 @@ export const processVehicleInventoryTask: TaskDefinition = {
                 await page.waitForTimeout(2000);
                 await page.screenshot({ path: `screenshots/after-factory-tab.png` });
                 logger.info(`✅ Successfully navigated to Factory Equipment tab using strategy: ${strategy.name}`);
-                
-                // Record tab access time
                 NavigationMetrics.recordOperationTime(i, 'tabAccess', Date.now() - tabStartTime);
                 break;
+              } else {
+                logger.info(`   ⏹️ Strategy ${strategy.name} did not succeed.`);
               }
             } catch (e) {
-              logger.debug(`Strategy ${strategy.name} failed: ${e}`);
+              logger.warn(`   Strategy ${strategy.name} failed with error:`, e);
               continue;
             }
           }
@@ -623,38 +654,43 @@ export const processVehicleInventoryTask: TaskDefinition = {
           if (tabSuccess) {
             await page.waitForTimeout(2000);
             
-            // STEP 2: Check if a new window opened with title=factory-equipment-details
-            logger.info('🪟 Checking for factory-equipment-details window...');
+            // STEP 3: Check if a new window opened with title=factory-equipment-details
+            logger.info('🕵️‍♂️ STEP 3/5: Checking for "factory-equipment-details" pop-up window...');
             const pages = page.context().pages();
             let factoryWindow: Page | null = null;
             
+            logger.info(`   Context has ${pages.length} pages.`);
             for (const p of pages) {
-              const title = await p.title();
-              logger.info(`Found window with title: "${title}"`);
-              if (title === 'factory-equipment-details' || title.includes('factory-equipment')) {
-                factoryWindow = p;
-                logger.info('✅ Found factory-equipment-details window!');
-                break;
+              try {
+                  const title = await p.title();
+                  logger.info(`   Checking page with title: "${title}" and URL: ${p.url()}`);
+                  if (title === 'factory-equipment-details' || title.includes('factory-equipment')) {
+                    factoryWindow = p;
+                    logger.info('✅ Found factory-equipment-details window!');
+                    break;
+                  }
+              } catch(e) {
+                  logger.warn(`Could not get page title. It might have closed.`)
               }
+
             }
             
             if (factoryWindow) {
-              // Switch context to the factory equipment window
-              // Only assign if not null
               if (factoryWindow) {
                 page = factoryWindow;
                 await page.waitForLoadState('networkidle');
+                logger.info('✅ Switched page context to factory equipment window.');
                 await page.screenshot({ path: `screenshots/vehicle-${i + 1}-factory-window.png` });
               }
             } else {
-              // STEP 3: Look for View Window Sticker button (inline content scenario)
-              logger.info('📄 No separate window found. Looking for View Window Sticker button...');
+              logger.info('🕵️‍♂️ STEP 4/5: Looking for "View Window Sticker" button on the current page...');
               
-              // Try within iframe first if available
               let stickerButton;
               if (factoryFrame) {
+                logger.info('   Searching within GaugePageIFrame...');
                 stickerButton = factoryFrame.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first();
               } else {
+                logger.info('   Searching on main page...');
                 stickerButton = page.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first();
               }
               if (stickerButton && await stickerButton.isVisible({ timeout: TIMEOUTS.NAVIGATION })) {
@@ -704,11 +740,9 @@ export const processVehicleInventoryTask: TaskDefinition = {
           if (config.readOnly) {
             logger.info('Read-only mode: Skipping window sticker processing');
           } else {
-            // Record window sticker extraction start time
             const windowStickerStartTime = Date.now();
-            
-            // STEP 4: Extract window sticker content using service
-            logger.info('📄 Extracting window sticker content...');
+
+            logger.info('🕵️‍♂️ STEP 5/5: Scraping window sticker content...');
             const windowStickerService = new WindowStickerService();
             const extractedData = await windowStickerService.extractFeatures(page);
             

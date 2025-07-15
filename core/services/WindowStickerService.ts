@@ -58,32 +58,135 @@ export class WindowStickerService {
   }
 
   /**
-   * Parse features from raw sticker text
+   * Parse features from raw sticker text with enhanced section detection
    */
   private parseFeatureText(content: string): string[] {
-    const sections = {
-      interior: /Interior[:\s]*([\\s\\S]*?)(?=\\n\\s*(?:Mechanical|Comfort|Safety|Exterior|$))/i,
-      mechanical: /Mechanical[:\s]*([\\s\\S]*?)(?=\\n\\s*(?:Interior|Comfort|Safety|Exterior|$))/i,
-      comfort: /(?:Comfort\\s*&\\s*Convenience|Convenience)[:\s]*([\\s\\S]*?)(?=\\n\\s*(?:Interior|Mechanical|Safety|Exterior|$))/i,
-      safety: /Safety[:\s]*([\\s\\S]*?)(?=\\n\\s*(?:Interior|Mechanical|Comfort|Exterior|$))/i
-    };
-    
     const features: string[] = [];
     
-    for (const [, sectionRegex] of Object.entries(sections)) {
-      const match = content.match(sectionRegex);
+    // Strategy 1: Structured section parsing (as per workflow)
+    const structuredFeatures = this.parseStructuredSections(content);
+    features.push(...structuredFeatures);
+    
+    // Strategy 2: Line-by-line parsing for unstructured content
+    if (features.length === 0) {
+      const lineFeatures = this.parseLineByLine(content);
+      features.push(...lineFeatures);
+    }
+    
+    // Strategy 3: Bullet point and list parsing
+    const listFeatures = this.parseBulletPoints(content);
+    features.push(...listFeatures);
+    
+    return [...new Set(features.filter(f => f.length > 3))];
+  }
+  
+  /**
+   * Parse structured sections: Interior, Comfort & Convenience, Mechanical
+   */
+  private parseStructuredSections(content: string): string[] {
+    const features: string[] = [];
+    
+    const sectionPatterns = {
+      interior: /Interior[:\s]*([\s\S]*?)(?=\n\s*(?:Comfort\s*&\s*Convenience|Mechanical|Safety|Exterior|Engine|Transmission|$))/i,
+      comfort: /(?:Comfort\s*&\s*Convenience|Convenience)[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Mechanical|Safety|Exterior|Engine|Transmission|$))/i,
+      mechanical: /Mechanical[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Safety|Exterior|Engine|Transmission|$))/i,
+      engine: /Engine[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Safety|Exterior|Mechanical|Transmission|$))/i,
+      transmission: /Transmission[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Safety|Exterior|Mechanical|Engine|$))/i,
+      safety: /Safety[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Mechanical|Exterior|Engine|Transmission|$))/i
+    };
+    
+    for (const [sectionName, pattern] of Object.entries(sectionPatterns)) {
+      const match = content.match(pattern);
       if (match && match[1]) {
-        const items = match[1].split(/[\\n\\r]+|\\s*[•·-]\\s*|\\s*,\\s*/);
-        for (const item of items) {
-          const cleaned = item.trim().replace(/^[\\d\\.\\)\\-\\*]+\\s*/, '');
-          if (cleaned.length > 3 && !cleaned.match(/^[\\s\\d]*$/)) {
-            features.push(cleaned);
-          }
+        const sectionContent = match[1].trim();
+        const sectionFeatures = this.extractFeaturesFromSection(sectionContent);
+        features.push(...sectionFeatures);
+      }
+    }
+    
+    return features;
+  }
+  
+  /**
+   * Extract features from a section's content
+   */
+  private extractFeaturesFromSection(sectionContent: string): string[] {
+    const features: string[] = [];
+    
+    // Split by common delimiters
+    const delimiters = /[\n\r]+|\s*[•·-]\s*|\s*,\s*|\s*;\s*/;
+    const items = sectionContent.split(delimiters);
+    
+    for (const item of items) {
+      const cleaned = item.trim()
+        .replace(/^[\d\.\)\-\*]+\s*/, '') // Remove leading numbers/bullets
+        .replace(/^[\s\-•·]+/, '') // Remove leading dashes/bullets
+        .replace(/[\s\-•·]+$/, ''); // Remove trailing dashes/bullets
+      
+      if (cleaned.length > 3 && 
+          !cleaned.match(/^[\s\d]*$/) && 
+          !cleaned.toLowerCase().includes('section') &&
+          !cleaned.toLowerCase().includes('category')) {
+        features.push(cleaned);
+      }
+    }
+    
+    return features;
+  }
+  
+  /**
+   * Parse content line by line for unstructured format
+   */
+  private parseLineByLine(content: string): string[] {
+    const features: string[] = [];
+    const lines = content.split(/[\n\r]+/);
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Skip headers and short lines
+      if (trimmed.length < 4 || 
+          trimmed.match(/^[\d\s]*$/) ||
+          trimmed.toLowerCase().includes('section') ||
+          trimmed.toLowerCase().includes('category') ||
+          trimmed.endsWith(':')) {
+        continue;
+      }
+      
+      // Clean and add feature
+      const cleaned = trimmed.replace(/^[\d\.\)\-\*•·]+\s*/, '');
+      if (cleaned.length > 3) {
+        features.push(cleaned);
+      }
+    }
+    
+    return features;
+  }
+  
+  /**
+   * Parse bullet points and lists
+   */
+  private parseBulletPoints(content: string): string[] {
+    const features: string[] = [];
+    
+    // Match bullet point patterns
+    const bulletPatterns = [
+      /[•·-]\s*([^\n\r•·-]+)/g,
+      /\*\s*([^\n\r\*]+)/g,
+      /\d+\.\s*([^\n\r\d\.]+)/g
+    ];
+    
+    for (const pattern of bulletPatterns) {
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        const feature = match[1].trim();
+        if (feature.length > 3 && !feature.match(/^[\s\d]*$/)) {
+          features.push(feature);
         }
       }
     }
     
-    return [...new Set(features)];
+    return features;
   }
 
   /**
