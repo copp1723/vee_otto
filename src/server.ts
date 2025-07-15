@@ -8,6 +8,11 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import twilio from 'twilio';
 
+// Import services
+import { SMS2FAService } from '../core/services/SMS2FAService';
+import { NavigationMetrics } from '../core/metrics/NavigationMetrics';
+import { TIMEOUTS, URLS, STORAGE } from '../core/config/constants';
+
 // Import types
 import {
   DashboardMetrics,
@@ -34,12 +39,19 @@ const logger = winston.createLogger({
   ]
 });
 
+// Initialize SMS 2FA Service
+const sms2FAService = new SMS2FAService({
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+  logger,
+  codeExpirationMs: TIMEOUTS.CODE_EXPIRATION
+});
+
 // Initialize Express app
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+    origin: URLS.DEFAULT_FRONTEND,
     credentials: true
   }
 });
@@ -76,8 +88,48 @@ if (require('fs').existsSync(dashboardPath)) {
   logger.warn('Dashboard directory not found, dashboard UI will not be available:', dashboardPath);
 }
 
-// Serve vAuto mockup test site statically
-app.use('/test-mockup', express.static(path.join(projectRoot, 'tests/fixtures/vauto-mockup')));
+// Navigation performance metrics endpoint
+app.get('/api/metrics/navigation', (req: Request, res: Response) => {
+  try {
+    const report = NavigationMetrics.generateReport();
+    const summary = NavigationMetrics.getFormattedSummary();
+    
+    const response: ApiResponse<any> = {
+      success: true,
+      data: {
+        report,
+        summary,
+        exportUrl: '/api/metrics/navigation/export'
+      },
+      timestamp: new Date().toISOString()
+    };
+    res.json(response);
+  } catch (error) {
+    logger.error('Error generating navigation metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate navigation metrics',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Export navigation metrics as downloadable JSON
+app.get('/api/metrics/navigation/export', (req: Request, res: Response) => {
+  try {
+    const metricsJson = NavigationMetrics.exportMetrics();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=navigation-metrics.json');
+    res.send(metricsJson);
+  } catch (error) {
+    logger.error('Error exporting navigation metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export navigation metrics',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -175,15 +227,8 @@ let dashboardData = {
 };
 
 /**
- * Twilio SMS Webhook Handler
+ * SMS 2FA Webhook Handlers - using SMS2FAService
  */
-interface StoredCode {
-  code: string;
-  timestamp: string;
-  from: string;
-}
-let storedCodes: StoredCode[] = [];
-const CODE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // Health check endpoint for Twilio webhook
 app.post('/webhooks/twilio/health', (req: Request, res: Response) => {
@@ -196,196 +241,29 @@ app.post('/webhooks/twilio/health', (req: Request, res: Response) => {
 
 // Twilio SMS webhook endpoint
 app.post('/webhooks/twilio/sms', (req: Request, res: Response) => {
-  const signature = req.headers['x-twilio-signature'] as string;
-  
-  // Debug logging for Render
-  logger.info('🔍 Webhook request received:', {
-    headers: {
-      'x-twilio-signature': signature,
-      'x-forwarded-host': req.headers['x-forwarded-host'],
-      'x-forwarded-proto': req.headers['x-forwarded-proto'],
-      'host': req.get('host')
-    },
-    body: req.body
-  });
-  
-  // When using ngrok, we need to use the forwarded URL for signature validation
-  let url: string;
-  const forwardedHost = req.headers['x-forwarded-host'] as string;
-  const forwardedProto = req.headers['x-forwarded-proto'] as string;
-  
-  // Check if we're on Render (they use x-forwarded headers differently)
-  const isRender = process.env.RENDER === 'true' || req.headers['x-render-proxy'] || 
-                   (forwardedHost && forwardedHost.includes('onrender.com'));
-  
-  if (isRender) {
-    // On Render, use the public URL directly
-    url = `https://vee-otto-api.onrender.com${req.originalUrl}`;
-    logger.info(`🔧 Render detected, using fixed URL for validation: ${url}`);
-  } else if (forwardedHost && forwardedProto) {
-    // Using ngrok or similar proxy
-    url = `${forwardedProto}://${forwardedHost}${req.originalUrl}`;
-    logger.debug(`Using forwarded URL for validation: ${url}`);
-  } else {
-    // Direct connection
-    url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  }
-  
-  const params = req.body;
-  
-  // Validate the request
-  const isValid = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN || '', signature, url, params);
-  
-  if (!isValid) {
-    logger.warn(`Invalid Twilio signature for URL: ${url}`);
-    logger.warn(`Signature validation failed. Debug info:`, {
-      url,
-      signature: signature ? 'present' : 'missing',
-      bodyKeys: Object.keys(params),
-      isRender
-    });
-    
-    // TEMPORARY: If on Render and it's a real-looking SMS, allow it through for debugging
-    if (isRender && params.Body && params.From && params.MessageSid && signature) {
-      logger.warn('⚠️  TEMPORARY: Allowing request through despite signature failure for debugging');
-      // Continue processing below
-    } else {
-      return res.status(403).send('Invalid signature');
-    }
-  }
-
-  const { Body, From } = req.body;
-  if (Body) {
-    logger.info(`📱 Raw SMS received from ${From}: "${Body}"`);
-    
-    // VAuto-specific extraction - look for their exact format first
-    let codeMatch = Body.match(/One-time Bridge ID code:\s*(\d{6})/i);
-    
-    if (!codeMatch) {
-      // Fallback: look for "code: XXXXXX" pattern
-      codeMatch = Body.match(/code:\s*(\d{6})/i);
-    }
-    
-    if (!codeMatch) {
-      // Final fallback: isolated 6-digit number (but be more strict)
-      const allSixDigits = Body.match(/\b(\d{6})\b/g);
-      if (allSixDigits && allSixDigits.length === 1) {
-        // Only use if there's exactly one 6-digit number
-        codeMatch = [Body, allSixDigits[0]];
-      }
-    }
-    
-    if (codeMatch) {
-      const code = codeMatch[1];
-      
-      // Validate code format
-      if (!/^\d{6}$/.test(code)) {
-        logger.warn(`Invalid code format extracted: "${code}" from SMS: "${Body}"`);
-        return res.status(200).send('<Response></Response>');
-      }
-      
-      // Check if this exact code already exists (prevent duplicates)
-      const existingCode = storedCodes.find(c => c.code === code);
-      if (existingCode) {
-        logger.warn(`Duplicate code ${code} ignored - already stored at ${existingCode.timestamp}`);
-        return res.status(200).send('<Response></Response>');
-      }
-      
-      const timestamp = new Date().toISOString();
-      storedCodes.push({ code, timestamp, from: From });
-      
-      // Remove expired codes
-      storedCodes = storedCodes.filter(c => new Date().getTime() - new Date(c.timestamp).getTime() < CODE_EXPIRATION_MS);
-      
-      logger.info(`✅ VALID 2FA code extracted and stored: ${code} from ${From}`);
-      logger.info(`📊 Total stored codes: ${storedCodes.length}`);
-      
-    } else {
-      logger.warn(`❌ Could not extract valid 6-digit code from SMS: "${Body}"`);
-      logger.warn(`   From: ${From}`);
-      logger.warn(`   This SMS will be ignored`);
-    }
-  } else {
-    logger.warn('Received SMS webhook with no Body');
-  }
-  return res.status(200).send('<Response></Response>');
+  sms2FAService.processSMSWebhook(req, res);
 });
 
-// Debug endpoint to check headers (add this after the webhook endpoint)
-app.post('/webhooks/twilio/debug', (req: Request, res: Response) => {
-  logger.info('🔍 DEBUG: Webhook request received');
-  logger.info('Headers:', JSON.stringify(req.headers, null, 2));
-  logger.info('Body:', req.body);
-  logger.info('Protocol:', req.protocol);
-  logger.info('Host:', req.get('host'));
-  logger.info('Original URL:', req.originalUrl);
-  logger.info('Base URL:', req.baseUrl);
-  logger.info('Path:', req.path);
-  
-  // Construct URLs using different methods
-  const method1 = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  const method2 = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}${req.originalUrl}`;
-  const method3 = `https://vee-otto-api.onrender.com${req.originalUrl}`;
-  
-  logger.info('URL Method 1:', method1);
-  logger.info('URL Method 2:', method2);
-  logger.info('URL Method 3:', method3);
-  
-  res.json({
-    message: 'Debug info logged',
-    headers: req.headers,
-    urls: { method1, method2, method3 }
-  });
-});
 
 // Endpoint for agent to fetch latest 2FA code (consumes code immediately)
 app.get('/api/2fa/latest', (req: Request, res: Response) => {
   logger.info(`🔍 DIAGNOSTIC: 2FA code request received`);
-  logger.info(`   Stored codes count: ${storedCodes.length}`);
   logger.info(`   Request from: ${req.ip}`);
   logger.info(`   User-Agent: ${req.headers['user-agent']}`);
   
-  if (storedCodes.length > 0) {
-    const latest = storedCodes[storedCodes.length - 1];
-    const codeAge = new Date().getTime() - new Date(latest.timestamp).getTime();
-    
-    logger.info(`   Latest code: ${latest.code}`);
-    logger.info(`   Code age: ${Math.round(codeAge/1000)}s`);
-    logger.info(`   Code expiration: ${CODE_EXPIRATION_MS/1000}s`);
-    logger.info(`   From: ${latest.from}`);
-    
-    if (codeAge < CODE_EXPIRATION_MS) {
-      // CRITICAL: Remove the code immediately after fetching to prevent reuse
-      storedCodes.pop(); // Remove the latest code
-      logger.info(`✅ 2FA code consumed: ${latest.code} (timestamp: ${latest.timestamp})`);
-      
-      res.json({
-        code: latest.code,
-        timestamp: latest.timestamp
-      });
-    } else {
-      // Remove expired code
-      storedCodes.pop();
-      logger.warn(`⚠️  Expired 2FA code discarded: ${latest.code} (age: ${Math.round(codeAge/1000)}s)`);
-      res.status(404).json({ error: 'Latest code expired' });
-    }
+  const result = sms2FAService.getLatestCode();
+  
+  if (result.success) {
+    logger.info(`✅ 2FA code retrieved successfully`);
+    res.json({
+      code: result.code,
+      timestamp: result.timestamp
+    });
   } else {
-    logger.info(`❌ No 2FA codes available`);
-    res.status(404).json({ error: 'No 2FA code received yet' });
+    logger.info(`❌ No 2FA codes available: ${result.error}`);
+    res.status(404).json({ error: result.error });
   }
 });
-
-// Test endpoint for 2FA system health check (does not inject codes)
-app.get('/api/2fa/test', (req: Request, res: Response) => {
-  logger.info('🔍 2FA system health check requested');
-  res.json({
-    status: 'ok',
-    message: '2FA system is operational',
-    storedCodes: storedCodes.length,
-    timestamp: new Date().toISOString()
-  });
-});
-
 
 // API Routes
 

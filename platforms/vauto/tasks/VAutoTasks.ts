@@ -1,9 +1,12 @@
 import { TaskDefinition, TaskContext } from '../../../core/services/TaskOrchestrator';
 import { Auth2FAService, Auth2FAConfig } from '../../../core/services/Auth2FAService';
+import { WindowStickerService } from '../../../core/services/WindowStickerService';
+import { InventoryFilterService } from '../../../core/services/InventoryFilterService';
+import { VehicleValidationService } from '../../../core/services/VehicleValidationService';
 import { Page } from 'playwright';
 import { reliableClick } from '../../../core/utils/reliabilityUtils';
 import { vAutoSelectors } from '../vautoSelectors';
-import { Locator } from '@playwright/test';
+import { TIMEOUTS, LIMITS, URLS } from '../../../core/config/constants';
 import { 
   mapFeaturesToCheckboxes, 
   determineCheckboxActions, 
@@ -11,6 +14,7 @@ import {
   FeatureUpdateReport
 } from '../featureMapping';
 import { ReportingService, RunSummary, VehicleProcessingResult as ReportVehicleResult } from '../../../core/services/ReportingService';
+import { NavigationMetrics } from '../../../core/metrics/NavigationMetrics';
 
 /**
  * VAuto Task Definitions
@@ -28,7 +32,7 @@ export const basicLoginTask: TaskDefinition = {
   name: 'Basic Login',
   description: 'Login with username and password (no 2FA)',
   dependencies: [],
-  timeout: 60000, // 1 minute
+  timeout: TIMEOUTS.LOGIN,
   retryCount: 2,
   critical: true,
   
@@ -73,7 +77,7 @@ export const twoFactorAuthTask: TaskDefinition = {
   name: '2FA Authentication',
   description: 'Handle 2FA authentication via SMS',
   dependencies: ['basic-login'],
-  timeout: 300000, // 5 minutes
+  timeout: TIMEOUTS.TWO_FACTOR,
   retryCount: 1, // Don't retry 2FA to avoid code expiration
   critical: true,
   
@@ -85,7 +89,7 @@ export const twoFactorAuthTask: TaskDefinition = {
     // Configure 2FA service with your working settings
     const auth2FAConfig: Auth2FAConfig = {
       webhookUrl: config.webhookUrl || `${process.env.PUBLIC_URL || 'http://localhost:3000'}/api/2fa/latest`,
-      timeout: 300000,
+      timeout: TIMEOUTS.TWO_FACTOR,
       codeInputSelector: vAutoSelectors.login.otpInput,
       submitSelector: vAutoSelectors.login.otpSubmit,
       phoneSelectButton: vAutoSelectors.login.phoneSelectButton,
@@ -119,7 +123,7 @@ export const navigateToInventoryTask: TaskDefinition = {
   name: 'Navigate to Inventory',
   description: 'Navigate to the inventory page',
   dependencies: ['2fa-auth'],
-  timeout: 60000,
+  timeout: TIMEOUTS.LOGIN,
   retryCount: 2,
   critical: true,
   
@@ -258,501 +262,26 @@ export const applyInventoryFiltersTask: TaskDefinition = {
   name: 'Apply Inventory Filters',
   description: 'Apply 0-1 days age filter to inventory',
   dependencies: ['navigate-inventory'],
-  timeout: 120000,
+  timeout: TIMEOUTS.LOGIN * 2, // Double timeout for navigation
   retryCount: 2,
   critical: true,
   
   async execute(context: TaskContext): Promise<any> {
     const { page, config, logger } = context;
     
-    logger.info('🔍 Applying inventory filters using SAVED FILTERS approach...');
+    const filterService = new InventoryFilterService(page, logger);
+    const result = await filterService.applyFilters();
     
-    try {
-      // Wait for any ExtJS loading masks to disappear first
-      await page.waitForTimeout(5000);
-      
-      // STRATEGY 1: Use SAVED FILTERS (Much more reliable!)
-      logger.info('🎯 Attempting to use "RECENT INVENTORY" saved filter...');
-      
-      await page.screenshot({ path: `screenshots/vauto-before-saved-filter.png` });
-      
-      // DEBUG: Log current page state
-      const currentUrl = page.url();
-      logger.info(`📍 Current URL: ${currentUrl}`);
-      
-      // DEBUG: Check if we can find any elements related to saved filters
-      const debugSelectors = [
-        { name: 'FILTERS button', selector: vAutoSelectors.inventory.filtersButton },
-        { name: 'SAVED FILTERS dropdown', selector: vAutoSelectors.inventory.savedFiltersDropdown },
-        { name: 'SAVED FILTERS arrow', selector: vAutoSelectors.inventory.savedFiltersArrow },
-        { name: 'Recent inventory filter', selector: vAutoSelectors.inventory.recentInventoryFilter }
-      ];
-      
-      for (const { name, selector } of debugSelectors) {
-        const element = page.locator(selector).first();
-        const isVisible = await element.isVisible();
-        const count = await page.locator(selector).count();
-        logger.info(`🔍 ${name}: visible=${isVisible}, count=${count}`);
-        
-        // Also try to get the text content for debugging
-        if (isVisible) {
-          try {
-            const textContent = await element.textContent();
-            logger.info(`📝 ${name} text: "${textContent}"`);
-          } catch (e) {
-            logger.info(`📝 ${name} text: Unable to get text content`);
-          }
-        }
-      }
-      
-      // DEBUG: Look for any elements containing "Saved Filters" text
-      const savedFiltersElements = page.locator('//*[contains(text(), "Saved Filters")]');
-      const savedFiltersCount = await savedFiltersElements.count();
-      logger.info(`🔍 Elements containing "Saved Filters": ${savedFiltersCount}`);
-      
-      if (savedFiltersCount > 0) {
-        for (let i = 0; i < Math.min(savedFiltersCount, 3); i++) {
-          const element = savedFiltersElements.nth(i);
-          const tagName = await element.evaluate(el => el.tagName);
-          const className = await element.getAttribute('class');
-          const textContent = await element.textContent();
-          logger.info(`📋 Saved Filters element ${i}: <${tagName}> class="${className}" text="${textContent}"`);
-        }
-      }
-      
-      // STEP 1: Try to find and click the SAVED FILTERS dropdown trigger
-      logger.info('🔍 Looking for SAVED FILTERS dropdown trigger...');
-      
-      const savedFiltersSelectors = [
-        vAutoSelectors.inventory.savedFiltersDropdownButton,
-        vAutoSelectors.inventory.savedFiltersDropdown,
-        vAutoSelectors.inventory.savedFiltersArrow,
-        vAutoSelectors.inventory.savedFiltersDropdownTrigger
-      ];
-      
-      let dropdownOpened = false;
-      
-      for (const selector of savedFiltersSelectors) {
-        const dropdownTrigger = page.locator(selector).first();
-        
-        if (await dropdownTrigger.isVisible()) {
-          logger.info(`📂 Found SAVED FILTERS dropdown trigger with selector: ${selector}`);
-          await dropdownTrigger.click();
-          await page.waitForTimeout(1500); // Give dropdown time to open
-          await page.waitForTimeout(5000);
-          
-          await page.screenshot({ path: `screenshots/vauto-saved-filters-dropdown-opened.png` });
-          dropdownOpened = true;
-          break;
-        }
-      }
-      
-      if (!dropdownOpened) {
-        logger.info('⚠️ Could not find SAVED FILTERS dropdown trigger, trying FILTERS button...');
-        
-        // Fallback: try the main FILTERS button
-        const filtersButton = page.locator(vAutoSelectors.inventory.filtersButton).first();
-        
-        if (await filtersButton.isVisible()) {
-          logger.info('📂 Found FILTERS button, clicking...');
-          await filtersButton.click();
-          await page.waitForTimeout(1500);
-          await page.waitForTimeout(5000);
-          
-          await page.screenshot({ path: `screenshots/vauto-filters-button-clicked.png` });
-          dropdownOpened = true;
-        }
-      }
-      
-      let dropdownItemCount = 0; // Renamed to avoid conflict
-      
-      if (dropdownOpened) {
-        // STEP 2: Try to find and click "RECENT INVENTORY" in the opened dropdown
-        logger.info('🔍 Looking for "RECENT INVENTORY" option in dropdown...');
-        
-        // Wait for dropdown to actually appear
-        await page.waitForTimeout(1000); // Give dropdown time to render
-        
-        // Try multiple selectors for dropdown items
-        const dropdownSelectors = [
-          vAutoSelectors.inventory.savedFilterItem,
-          vAutoSelectors.inventory.extjsDropdownItem,
-          '//div[contains(@class, "x-layer")]//div[contains(@class, "x-combo-list-inner")]/div',
-          '//div[contains(@class, "x-combo-list")]//div[contains(@class, "x-combo-list-inner")]/div',
-          '//div[@class="x-combo-list-inner"]/div',
-          '//ul[contains(@class, "x-menu-list")]//li',
-          '//div[contains(@style, "visibility: visible")]//div[contains(@class, "x-combo-list-item")]'
-        ];
-        
-        let allDropdownItems: Locator | null = null;
-        dropdownItemCount = 0; // Use the outer declaration
-        
-        // Try each selector until we find items
-        for (const selector of dropdownSelectors) {
-          try {
-            const items = page.locator(selector);
-            const count = await items.count();
-            if (count > 0) {
-              allDropdownItems = items;
-              dropdownItemCount = count;
-              logger.info(`📋 Found ${dropdownItemCount} dropdown items using selector: ${selector}`);
-              break;
-            }
-          } catch (e) {
-            // Continue to next selector
-          }
-        }
-        
-        // If still no items, wait a bit more and try again
-        if (dropdownItemCount === 0) {
-          logger.info('⏳ No dropdown items found yet, waiting longer...');
-          await page.waitForTimeout(2000);
-          
-          // Try one more time with the most likely selector
-          allDropdownItems = page.locator('//div[contains(@class, "x-layer")]//div[contains(@class, "x-combo-list-inner")]/div | //div[@class="x-combo-list-inner"]/div');
-          dropdownItemCount = await allDropdownItems.count();
-        }
-        
-        logger.info(`📋 Found ${dropdownItemCount} dropdown items total`);
-        
-        if (dropdownItemCount > 0 && allDropdownItems) {
-          type DropdownItem = { index: number; text: string; locator: Locator };
-          const dropdownItems: DropdownItem[] = [];
-          for (let i = 0; i < Math.min(dropdownItemCount, 10); i++) {
-            const item = allDropdownItems.nth(i);
-            try {
-              const isVisible = await item.isVisible();
-              const textContent = (await item.textContent())?.trim();
-              logger.info(`📋 Dropdown item ${i + 1}: visible=${isVisible}, text="${textContent}"`);
-              if (isVisible && textContent) {
-                dropdownItems.push({ index: i, text: textContent, locator: item });
-              }
-            } catch (e) {
-              logger.info(`📋 Dropdown item ${i + 1}: Error getting details - ${e}`);
-            }
-          }
-          
-          // NEW: Smart dropdown selection - avoid "Manage Filters" and find "RECENT INVENTORY"
-          logger.info('🎯 Using smart dropdown selection to avoid menu conflicts...');
-          
-          // Filter out problematic items and find target
-          const safeItems = dropdownItems.filter(item => 
-            !item.text.toUpperCase().includes('MANAGE FILTERS') &&
-            !item.text.toUpperCase().includes('MANAGE') &&
-            item.text.trim().length > 0
-          );
-          
-          logger.info(`Found ${safeItems.length} safe dropdown items (excluding Manage Filters)`);
-          safeItems.forEach((item, idx) => {
-            logger.info(`  ${idx + 1}. "${item.text}"`);
-          });
-          
-          // Look for exact "RECENT INVENTORY" match first
-          let targetItem = safeItems.find(item => item.text.toUpperCase() === 'RECENT INVENTORY');
-          
-          // If not found, look for partial matches
-          if (!targetItem) {
-            targetItem = safeItems.find(item => 
-              item.text.toUpperCase().includes('RECENT') ||
-              item.text.toUpperCase().includes('INVENTORY')
-            );
-          }
-          
-          // If still not found, use first safe item (assuming limited options)
-          if (!targetItem && safeItems.length > 0) {
-            targetItem = safeItems[0];
-            logger.info(`No RECENT INVENTORY found, using first safe item: "${targetItem.text}"`);
-          }
-          
-          if (targetItem) {
-            logger.info(`🎯 Targeting dropdown item: "${targetItem.text}" at index ${targetItem.index + 1}`);
-            
-            try {
-              // Enhanced click strategy with multiple fallbacks
-              await targetItem.locator.hover();
-              await page.waitForTimeout(500);
-              
-              // Try force click first
-              await targetItem.locator.click({ force: true });
-              logger.info('✅ Clicked via force click');
-              
-            } catch (clickError) {
-              logger.warn('⚠️ Force click failed, trying JavaScript click...');
-              
-              try {
-                // JavaScript click fallback
-                await page.evaluate((text) => {
-                  const items = Array.from(document.querySelectorAll('.x-combo-list-item, .x-menu-item'));
-                  const targetItem = items.find(item => 
-                    item.textContent && item.textContent.trim().toUpperCase() === text.toUpperCase()
-                  );
-                  if (targetItem) {
-                    (targetItem as HTMLElement).click();
-                    return true;
-                  }
-                  return false;
-                }, targetItem.text);
-                
-                logger.info('✅ Clicked via JavaScript');
-                
-              } catch (jsError) {
-                logger.warn('⚠️ JavaScript click failed, trying coordinate click...');
-                
-                // Coordinate click as final fallback
-                const box = await targetItem.locator.boundingBox();
-                if (box) {
-                  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-                  logger.info('✅ Clicked via coordinates');
-                } else {
-                  throw new Error('All click methods failed');
-                }
-              }
-            }
-            
-            await page.waitForLoadState('networkidle');
-            await page.waitForTimeout(5000);
-            await page.screenshot({ path: `screenshots/vauto-saved-filter-applied.png` });
-            
-            // Wait for grid to populate after filter
-            await page.waitForTimeout(3000); // Give grid time to load
-            
-            // Check for any error messages or "no results" indicators
-            const errorMessages = await page.locator('//div[contains(@class, "error") or contains(@class, "alert") or contains(@class, "warning")]').all();
-            if (errorMessages.length > 0) {
-              for (const errorMsg of errorMessages) {
-                const text = await errorMsg.textContent();
-                logger.warn(`⚠️ Error/warning on page: ${text}`);
-              }
-            }
-            
-            const noResultsMsg = await page.locator('//div[contains(text(), "No records") or contains(text(), "No vehicles") or contains(text(), "No results") or contains(text(), "0 items")]').count();
-            if (noResultsMsg > 0) {
-              logger.warn('⚠️ "No results" message detected on page');
-            }
-            
-            // Check the grid status/paging info
-            const pagingInfo = await page.locator('//div[contains(@class, "x-toolbar")]//span[contains(text(), "of")]').textContent().catch(() => null);
-            if (pagingInfo) {
-              logger.info(`📊 Grid paging info: ${pagingInfo}`);
-            }
-            
-            // Try multiple approaches to count vehicles
-            let vehicleCount = await page.locator(vAutoSelectors.inventory.vehicleRows).count();
-            logger.info(`📊 Default selector found ${vehicleCount} vehicles`);
-            
-            // If no vehicles found with default selector, try alternatives
-            if (vehicleCount === 0) {
-              logger.info('⚠️ No vehicles found with default selector, trying alternatives...');
-              
-              const alternativeSelectors = [
-                '//div[contains(@class, "x-grid3-scroller")]//tr[contains(@class, "x-grid3-row") and not(contains(@class, "x-grid3-row-checker"))]',
-                '//div[contains(@class, "x-grid")]//tbody//tr[contains(@class, "x-grid3-row") and not(contains(@style, "display: none"))]',
-                '//tr[@class="x-grid3-row" and not(contains(@style, "display: none"))]',
-                '//div[@class="x-grid3-scroller"]//table[@class="x-grid3-row-table"]//tr[contains(@class, "x-grid3-row")]',
-                '//table[@class="x-grid3-row-table"]',
-                '//div[@class="x-grid3-body"]//tr'
-              ];
-              
-              for (const selector of alternativeSelectors) {
-                const count = await page.locator(selector).count();
-                logger.info(`📊 Testing selector "${selector}": found ${count} items`);
-                if (count > 0) {
-                  vehicleCount = count;
-                  logger.info(`✅ Found ${count} vehicles with selector: ${selector}`);
-                  break;
-                }
-              }
-            }
-            
-            logger.info(`✅ Saved filter "${targetItem.text}" applied successfully. Found ${vehicleCount} vehicles`);
-            
-            // If "recent inventory" returns 0 vehicles, log additional debugging info
-            if (vehicleCount === 0) {
-              logger.warn('⚠️ Filter returned 0 vehicles. This could mean:');
-              logger.warn('   1. The "recent inventory" filter criteria has no matching vehicles');
-              logger.warn('   2. The filter was not applied correctly');
-              logger.warn('   3. The page needs more time to load');
-              
-              // Try one more wait and recount
-              logger.info('⏳ Waiting additional 5 seconds and recounting...');
-              await page.waitForTimeout(5000);
-              vehicleCount = await page.locator(vAutoSelectors.inventory.vehicleRows).count();
-              logger.info(`📊 After additional wait: ${vehicleCount} vehicles found`);
-            }
-            
-            // If we still have 0 vehicles, don't return yet - let it fall through to manual filter
-            if (vehicleCount > 0) {
-              return { 
-                vehicleCount, 
-                filterMethod: 'saved-filter-smart-selection', 
-                appliedFilter: targetItem.text,
-                timestamp: new Date() 
-              };
-            } else {
-              logger.warn('⚠️ Saved filter returned 0 vehicles, will try manual filter fallback...');
-            }
-          }
-          
-          logger.info('⚠️ No suitable dropdown items found via text matching');
-        }
-        
-        logger.info('⚠️ Could not find suitable dropdown item via any method');
-      }
-      
-      // NEW: Try JavaScript evaluation as last resort
-      if (!dropdownOpened || dropdownItemCount === 0) {
-        logger.info('🔧 Attempting JavaScript evaluation to find dropdown items...');
-        
-        const dropdownData = await page.evaluate(() => {
-          // Look for ExtJS combo list items
-          const items: Array<{text: string, index: number, selector: string}> = [];
-          
-          // Try various selectors
-          const selectors = [
-            'div.x-combo-list-inner > div',
-            'div.x-layer div.x-combo-list-item',
-            'ul.x-menu-list li',
-            'div[class*="combo-list"] div[class*="item"]'
-          ];
-          
-          for (const selector of selectors) {
-            const elements = document.querySelectorAll(selector);
-            if (elements.length > 0) {
-              elements.forEach((el, idx) => {
-                const text = el.textContent?.trim();
-                if (text && text.length > 0) {
-                  items.push({
-                    text,
-                    index: idx,
-                    selector: `${selector}:nth-child(${idx + 1})`
-                  });
-                }
-              });
-              break; // Use first selector that finds items
-            }
-          }
-          
-          return items;
-        });
-        
-        logger.info(`📋 JavaScript found ${dropdownData.length} dropdown items`);
-        
-        if (dropdownData.length > 0) {
-          // Log all items
-          dropdownData.forEach((item, idx) => {
-            logger.info(`  ${idx + 1}. "${item.text}"`);
-          });
-          
-          // Find "RECENT INVENTORY" or similar
-          const targetItem = dropdownData.find(item => 
-            item.text.toUpperCase().includes('RECENT') || 
-            item.text.toUpperCase().includes('INVENTORY')
-          ) || dropdownData[0]; // Use first item as fallback
-          
-          if (targetItem) {
-            logger.info(`🎯 Clicking item via JavaScript: "${targetItem.text}"`);
-            
-            await page.evaluate((selector) => {
-              const element = document.querySelector(selector);
-              if (element) {
-                (element as HTMLElement).click();
-              }
-            }, targetItem.selector);
-            
-            await page.waitForLoadState('networkidle');
-            await page.waitForTimeout(5000);
-            
-            const vehicleCount = await page.locator(vAutoSelectors.inventory.vehicleRows).count();
-            logger.info(`✅ Filter applied via JavaScript. Found ${vehicleCount} vehicles`);
-            
-            return {
-              vehicleCount,
-              filterMethod: 'javascript-evaluation',
-              appliedFilter: targetItem.text,
-              timestamp: new Date()
-            };
-          }
-        }
-      }
-      
-      // STRATEGY 1.5: Try alternative approach - look for any saved filter items
-      logger.info('🔍 Trying alternative approach - looking for any saved filter items...');
-      
-      const savedFilterItems = page.locator(vAutoSelectors.inventory.savedFilterItem);
-      const itemCount = await savedFilterItems.count();
-      
-      logger.info(`📋 Found ${itemCount} saved filter items`);
-      
-      if (itemCount > 0) {
-        for (let i = 0; i < itemCount; i++) {
-          const item = savedFilterItems.nth(i);
-          const itemText = await item.textContent();
-          
-          logger.info(`📋 Saved filter item ${i}: "${itemText}"`);
-          
-          if (itemText && itemText.toLowerCase().includes('recent')) {
-            logger.info(`✅ Found potential "recent inventory" filter: "${itemText}"`);
-            await item.click();
-            await page.waitForLoadState('networkidle');
-            await page.waitForTimeout(5000);
-            
-            await page.screenshot({ path: `screenshots/vauto-recent-inventory-alternative-applied.png` });
-            
-            const vehicleCount = await page.locator(vAutoSelectors.inventory.vehicleRows).count();
-            
-            logger.info(`✅ Saved filter "${itemText}" applied successfully. Found ${vehicleCount} vehicles`);
-            
-            return {
-              vehicleCount,
-              filterMethod: 'saved-filter-alternative',
-              appliedFilter: itemText,
-              timestamp: new Date()
-            };
-          }
-        }
-      }
-      
-      // STRATEGY 2: Manual filter as fallback (only if saved filters fail)
-      logger.info('⚠️ Saved filters not available or returned 0 vehicles, falling back to manual filter...');
-      
-      await page.screenshot({ path: `screenshots/vauto-manual-filter-fallback.png` });
-      
-      // Simple approach: try to set age filter directly
-      try {
-        // Try a wider range first (0-30 days)
-        logger.info('📊 Applying manual age filter: 0-30 days');
-        await page.fill(vAutoSelectors.inventory.ageMinInput, '0');
-        await page.fill(vAutoSelectors.inventory.ageMaxInput, '30');
-        
-        // Try to find apply button
-        const applyButton = page.locator('//button[contains(text(), "Search") or contains(text(), "Apply") or contains(text(), "Filter")]').first();
-        if (await applyButton.isVisible()) {
-          await applyButton.click();
-          await page.waitForLoadState('networkidle');
-          await page.waitForTimeout(5000);
-        }
-        
-        await page.screenshot({ path: `screenshots/vauto-manual-fallback-applied.png` });
-        
-        const vehicleCount = await page.locator(vAutoSelectors.inventory.vehicleRows).count();
-        
-        logger.info(`✅ Manual filter applied as fallback. Found ${vehicleCount} vehicles`);
-        
-        return {
-          vehicleCount,
-          filterMethod: 'manual-fallback',
-          timestamp: new Date()
-        };
-        
-      } catch (manualError) {
-        logger.error('Manual filter fallback also failed:', manualError);
-        throw new Error('Both saved filters and manual filters failed');
-      }
-      
-    } catch (error) {
-      logger.error('Filter application failed:', error);
-      throw error;
+    if (!result.success) {
+      throw new Error(`Filter application failed: ${result.error}`);
     }
+    
+    return {
+      vehicleCount: result.vehicleCount,
+      filterMethod: result.filterMethod,
+      appliedFilter: result.appliedFilter,
+      timestamp: new Date()
+    };
   }
 };
 
@@ -765,7 +294,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
   name: 'Process Vehicle Inventory',
   description: 'Process filtered vehicles for feature updates',
   dependencies: ['apply-filters'],
-  timeout: 600000, // 10 minutes
+  timeout: TIMEOUTS.TWO_FACTOR * 2, // 10 minutes for full vehicle processing
   retryCount: 1,
   critical: false, // Not critical - partial success is okay
   
@@ -892,6 +421,9 @@ export const processVehicleInventoryTask: TaskDefinition = {
           // Store current URL to verify navigation
           const beforeClickUrl = page.url();
           
+          // Record navigation start time
+          const navStartTime = Date.now();
+          
           // Click the vehicle link with improved error handling
           try {
             await vehicleLinks[i].click();
@@ -913,7 +445,16 @@ export const processVehicleInventoryTask: TaskDefinition = {
           }
           
           // Additional verification: check for vehicle details elements
-          const detailsLoaded = await page.locator('//a[contains(text(), "Vehicle Info")] | //div[contains(@class, "vehicle-details")] | //*[@id="GaugePageIFrame"]').first().isVisible({ timeout: 5000 }).catch(() => false);
+          const detailsLoaded = await page.locator('//a[contains(text(), "Vehicle Info")] | //div[contains(@class, "vehicle-details")] | //*[@id="GaugePageIFrame"]').first().isVisible({ timeout: TIMEOUTS.PAGE_LOAD }).catch(() => false);
+          
+          // Record navigation metrics
+          NavigationMetrics.recordNavigationAttempt(i, navStartTime, {
+            success: detailsLoaded,
+            navigationMethod: navigationSuccess ? 'primary' : 'fallback',
+            url: afterClickUrl,
+            error: detailsLoaded ? undefined : 'Vehicle details page not loaded'
+          });
+          NavigationMetrics.recordOperationTime(i, 'navigation', Date.now() - navStartTime);
           
           if (!detailsLoaded) {
             logger.warn('Vehicle details page may not have loaded properly');
@@ -925,14 +466,19 @@ export const processVehicleInventoryTask: TaskDefinition = {
 
           logger.info('📋 On Vehicle Info page, preparing to access Factory Equipment...');
           
+          // Record tab access start time
+          const tabStartTime = Date.now();
+          
           // STEP 1: Select the GaugePageIFrame as per workflow
           logger.info('🖼️ Selecting GaugePageIFrame...');
-          let factoryFrame = null;
+          let factoryFrame: import('playwright').FrameLocator | null = null;
           try {
             // Try iframe by ID first
             factoryFrame = page.frameLocator('#GaugePageIFrame');
             // Verify frame exists by trying to access an element
-            await factoryFrame.locator('body').waitFor({ timeout: 3000 });
+            if (factoryFrame) {
+              await factoryFrame.locator('body').waitFor({ timeout: TIMEOUTS.NAVIGATION });
+            }
             logger.info('✅ Successfully selected GaugePageIFrame');
           } catch (frameError) {
             logger.warn('Could not access GaugePageIFrame, continuing without frame context');
@@ -1019,10 +565,13 @@ export const processVehicleInventoryTask: TaskDefinition = {
             try {
               tabSuccess = await strategy();
               if (tabSuccess) {
-                await page.waitForTimeout(2000);
-                await page.screenshot({ path: `screenshots/after-factory-tab.png` });
-                logger.info('✅ Successfully navigated to Factory Equipment tab');
-                break;
+              await page.waitForTimeout(2000);
+              await page.screenshot({ path: `screenshots/after-factory-tab.png` });
+              logger.info('✅ Successfully navigated to Factory Equipment tab');
+              
+            // Record tab access time
+            NavigationMetrics.recordOperationTime(i, 'tabAccess', Date.now() - tabStartTime);
+            break;
               }
             } catch (e) {
               continue;
@@ -1035,7 +584,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
             // STEP 2: Check if a new window opened with title=factory-equipment-details
             logger.info('🪟 Checking for factory-equipment-details window...');
             const pages = page.context().pages();
-            let factoryWindow = null;
+            let factoryWindow: Page | null = null;
             
             for (const p of pages) {
               const title = await p.title();
@@ -1049,31 +598,37 @@ export const processVehicleInventoryTask: TaskDefinition = {
             
             if (factoryWindow) {
               // Switch context to the factory equipment window
-              page = factoryWindow;
-              await page.waitForLoadState('networkidle');
-              await page.screenshot({ path: `screenshots/vehicle-${i + 1}-factory-window.png` });
+              // Only assign if not null
+              if (factoryWindow) {
+                page = factoryWindow;
+                await page.waitForLoadState('networkidle');
+                await page.screenshot({ path: `screenshots/vehicle-${i + 1}-factory-window.png` });
+              }
             } else {
               // STEP 3: Look for View Window Sticker button (inline content scenario)
               logger.info('📄 No separate window found. Looking for View Window Sticker button...');
               
               // Try within iframe first if available
-              const stickerButton = factoryFrame 
-                ? factoryFrame.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first()
-                : page.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first();
-              
-              if (await stickerButton.isVisible({ timeout: 3000 })) {
+              let stickerButton;
+              if (factoryFrame) {
+                stickerButton = factoryFrame.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first();
+              } else {
+                stickerButton = page.locator('//button[contains(text(), "View Window Sticker")] | //a[contains(text(), "Window Sticker")]').first();
+              }
+              if (stickerButton && await stickerButton.isVisible({ timeout: TIMEOUTS.NAVIGATION })) {
                 logger.info('Found window sticker button, clicking...');
                 await stickerButton.click();
                 await page.waitForTimeout(2000);
-                
                 // Check again for new window after button click
                 const pagesAfterClick = page.context().pages();
                 for (const p of pagesAfterClick) {
                   const title = await p.title();
                   if (title === 'factory-equipment-details' || title.includes('factory-equipment')) {
                     factoryWindow = p;
-                    page = factoryWindow;
-                    await page.waitForLoadState('networkidle');
+                    if (factoryWindow) {
+                      page = factoryWindow;
+                      await page.waitForLoadState('networkidle');
+                    }
                     logger.info('✅ Factory window opened after button click');
                     break;
                   }
@@ -1087,10 +642,10 @@ export const processVehicleInventoryTask: TaskDefinition = {
             logger.warn('Factory Equipment tab navigation failed, looking for direct window sticker link...');
             const directStickerLink = page.locator('//a[contains(text(), "Window Sticker")] | //a[contains(text(), "Monroney")] | //a[contains(@href, "window-sticker")]').first();
             
-            if (await directStickerLink.isVisible({ timeout: 3000 })) {
+            if (await directStickerLink.isVisible({ timeout: TIMEOUTS.NAVIGATION })) {
               logger.info('Found direct window sticker link in Vehicle Info tab');
               const [newPage] = await Promise.all([
-                page.context().waitForEvent('page', { timeout: 5000 }),
+                page.context().waitForEvent('page', { timeout: TIMEOUTS.PAGE_LOAD }),
                 directStickerLink.click()
               ]).catch(() => [null]);
               
@@ -1107,28 +662,31 @@ export const processVehicleInventoryTask: TaskDefinition = {
           if (config.readOnly) {
             logger.info('Read-only mode: Skipping window sticker processing');
           } else {
-            // STEP 4: Extract window sticker content (embedded HTML, not PDF)
-            logger.info('📄 Extracting window sticker content...');
-            const stickerText = await getWindowStickerContent(page);
+            // Record window sticker extraction start time
+            const windowStickerStartTime = Date.now();
             
-            if (stickerText && stickerText.length > 100) {
-              logger.info(`✅ Successfully extracted window sticker content (${stickerText.length} characters)`);
+            // STEP 4: Extract window sticker content using service
+            logger.info('📄 Extracting window sticker content...');
+            const windowStickerService = new WindowStickerService();
+            const extractedData = await windowStickerService.extractFeatures(page);
+            
+            // Record window sticker extraction time
+            NavigationMetrics.recordOperationTime(i, 'windowSticker', Date.now() - windowStickerStartTime);
+            
+            if (extractedData.features.length > 0) {
+              logger.info(`✅ Successfully extracted ${extractedData.features.length} features from window sticker`);
+              featuresFound = extractedData.features;
+              logger.info('Features found: ' + featuresFound.slice(0, 5).join(', ') + (featuresFound.length > 5 ? '...' : ''));
+              processed = true;
               
-              // Extract features from the HTML content
-              featuresFound = extractFeaturesFromSticker(stickerText);
-              logger.info(`🔍 Extracted ${featuresFound.length} features from window sticker`);
-              
-              if (featuresFound.length > 0) {
-                logger.info('Features found: ' + featuresFound.slice(0, 5).join(', ') + (featuresFound.length > 5 ? '...' : ''));
-                processed = true;
-                
-                // TODO: Map features to checkboxes and update them
-                logger.warn('Checkbox mapping and updating not yet implemented');
-              } else {
-                logger.warn('No features extracted from window sticker content');
-              }
+              // TODO: Map features to checkboxes and update them
+              logger.warn('Checkbox mapping and updating not yet implemented');
+              // When implemented, record checkbox update time:
+              // const checkboxStartTime = Date.now();
+              // ... checkbox update logic ...
+              // NavigationMetrics.recordOperationTime(i, 'checkboxUpdate', Date.now() - checkboxStartTime);
             } else {
-              logger.warn('Window sticker content not found or too short');
+              logger.warn('No features extracted from window sticker content');
               errors.push('Failed to extract window sticker content');
             }
           }
@@ -1168,7 +726,7 @@ export const processVehicleInventoryTask: TaskDefinition = {
         }
 
         results.vehicles.push({
-          vin: 'UNKNOWN', // TODO: Extract VIN from page
+          vin: 'UNKNOWN', // VIN extraction handled in processVehicleFeatures
           processed,
           featuresFound,
           featuresUpdated,
@@ -1182,6 +740,26 @@ export const processVehicleInventoryTask: TaskDefinition = {
       }
       
       logger.info(`✅ Vehicle processing completed. Processed: ${results.processedVehicles}, Failed: ${results.failedVehicles}`);
+      
+      // Log navigation performance metrics
+      const navMetrics = NavigationMetrics.generateReport();
+      logger.info('📊 Navigation Performance Summary:');
+      logger.info(`  Success Rate: ${navMetrics.successRate.toFixed(1)}%`);
+      logger.info(`  Avg Navigation Time: ${(navMetrics.avgNavigationTime / 1000).toFixed(2)}s`);
+      logger.info(`  Avg Tab Access Time: ${(navMetrics.timeBreakdown.tabAccess / 1000).toFixed(2)}s`);
+      logger.info(`  Avg Window Sticker Time: ${(navMetrics.timeBreakdown.windowSticker / 1000).toFixed(2)}s`);
+      logger.info(`  Total Avg Time per Vehicle: ${(navMetrics.timeBreakdown.total / 1000).toFixed(2)}s`);
+      
+      // Log failure patterns if any
+      if (Object.keys(navMetrics.failurePatterns).length > 0) {
+        logger.info('🔍 Top Failure Patterns:');
+        Object.entries(navMetrics.failurePatterns)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .forEach(([pattern, count]) => {
+            logger.info(`  - ${pattern}: ${count} occurrences`);
+          });
+      }
       
       // Generate reports
       const endTime = new Date();
@@ -1218,24 +796,20 @@ export const processVehicleInventoryTask: TaskDefinition = {
   }
 };
 
-/**
- * Helper function to get vehicle VIN
- */
-async function getVehicleVIN(page: Page): Promise<string> {
-  try {
-    const vinElement = await page.locator(vAutoSelectors.vehicleDetails.vinField).first();
-    return await vinElement.textContent() || 'UNKNOWN';
-  } catch (error) {
-    return 'UNKNOWN';
-  }
-}
+// REMOVED: getVehicleVIN function - moved to VehicleValidationService
 
 /**
  * Helper function to process vehicle features including factory equipment
  */
-async function processVehicleFeatures(page: Page, vin: string, config: any, logger: any): Promise<any> {
+async function processVehicleFeatures(page: Page, vehicleIndex: number, config: any, logger: any): Promise<any> {
+  // Extract vehicle data first
+  const validationService = new VehicleValidationService(page, logger);
+  const vehicleDataResult = await validationService.extractVehicleData();
+  const vin = vehicleDataResult.vehicleData.vin;
+  
   const result = {
     vin,
+    vehicleData: vehicleDataResult.vehicleData,
     processed: true,
     featuresFound: [] as string[],
     featuresUpdated: [] as string[],
@@ -1513,12 +1087,10 @@ async function processVehicleFeatures(page: Page, vin: string, config: any, logg
     
     // Get window sticker content if available
     try {
-      const stickerContent = await getWindowStickerContent(page);
-      
-      if (stickerContent) {
-        result.featuresFound = extractFeaturesFromSticker(stickerContent);
-        logger.info(`Found ${result.featuresFound.length} features in window sticker`);
-      }
+      const windowStickerService = new WindowStickerService();
+      const extractedData = await windowStickerService.extractFeatures(page);
+      result.featuresFound = extractedData.features;
+      logger.info(`Found ${result.featuresFound.length} features in window sticker`);
     } catch (error) {
       result.errors.push(`Window sticker processing failed: ${error}`);
     }
@@ -1545,282 +1117,9 @@ async function processVehicleFeatures(page: Page, vin: string, config: any, logg
 }
 
 /**
- * Test checkboxes on factory equipment page using real ExtJS patterns
- */
-async function testFactoryEquipmentCheckboxes(page: Page, logger: any): Promise<any[]> {
-  const checkboxResults: any[] = [];
-  
-  try {
-    logger.info('🧪 Testing factory equipment checkboxes with ExtJS patterns...');
-    
-    // Try to find ExtJS feature checkboxes first (ext-va-feature-checkbox-XXXX pattern)
-    const extjsFeatureCheckboxes = await page.locator(vAutoSelectors.vehicleDetails.checkboxPattern).all();
-    logger.info(`Found ${extjsFeatureCheckboxes.length} ExtJS feature checkboxes`);
-    
-    // Also find regular checkboxes as fallback
-    const regularCheckboxes = await page.locator('input[type="checkbox"]').all();
-    logger.info(`Found ${regularCheckboxes.length} total checkboxes on the page`);
-    
-    // Prefer ExtJS checkboxes, fall back to regular ones
-    const checkboxes = extjsFeatureCheckboxes.length > 0 ? extjsFeatureCheckboxes : regularCheckboxes;
-    
-    if (checkboxes.length === 0) {
-      logger.warn('No checkboxes found on factory equipment page');
-      return checkboxResults;
-    }
-    
-    // Test up to 5 checkboxes to avoid taking too long
-    const maxCheckboxesToTest = Math.min(5, checkboxes.length);
-    
-    for (let i = 0; i < maxCheckboxesToTest; i++) {
-      try {
-        const checkbox = checkboxes[i];
-        
-        // Get checkbox ID for ExtJS pattern identification
-        const checkboxId = await checkbox.getAttribute('id') || 'unknown';
-        
-        // Get checkbox label
-        const label = await getCheckboxLabel(page, checkbox);
-        
-        // Get initial state
-        const initialState = await checkbox.isChecked();
-        
-        logger.info(`Testing checkbox ${i + 1}: "${label}" (ID: ${checkboxId}, initially ${initialState ? 'checked' : 'unchecked'})`);
-        
-        // Test clicking the checkbox
-        await checkbox.click();
-        await page.waitForTimeout(500);
-        
-        // Get state after first click
-        const afterFirstClick = await checkbox.isChecked();
-        
-        // Click again to test toggle
-        await checkbox.click();
-        await page.waitForTimeout(500);
-        
-        // Get state after second click
-        const afterSecondClick = await checkbox.isChecked();
-        
-        const testResult = {
-          index: i + 1,
-          id: checkboxId,
-          label,
-          initialState,
-          afterFirstClick,
-          afterSecondClick,
-          toggleWorking: initialState !== afterFirstClick && afterFirstClick !== afterSecondClick,
-          responsive: true,
-          isExtJSCheckbox: checkboxId.includes('ext-va-feature-checkbox')
-        };
-        
-        checkboxResults.push(testResult);
-        
-        logger.info(`Checkbox "${label}": ${initialState ? 'checked' : 'unchecked'} → ${afterFirstClick ? 'checked' : 'unchecked'} → ${afterSecondClick ? 'checked' : 'unchecked'} (${testResult.toggleWorking ? 'Working' : 'Not Working'})`);
-        
-        // Take screenshot after testing this checkbox
-        await page.screenshot({ path: `screenshots/checkbox-test-${i + 1}-${label.replace(/[^a-zA-Z0-9]/g, '_')}.png` });
-        
-      } catch (error) {
-        logger.warn(`Failed to test checkbox ${i + 1}:`, error);
-        checkboxResults.push({
-          index: i + 1,
-          label: 'Unknown',
-          error: error instanceof Error ? error.message : String(error),
-          responsive: false
-        });
-      }
-    }
-    
-    // Summary
-    const workingCheckboxes = checkboxResults.filter(r => r.toggleWorking).length;
-    const extjsCheckboxCount = checkboxResults.filter(r => r.isExtJSCheckbox).length;
-    logger.info(`📊 Checkbox Test Summary: ${workingCheckboxes}/${checkboxResults.length} checkboxes working correctly (${extjsCheckboxCount} ExtJS checkboxes)`);
-    
-  } catch (error) {
-    logger.error('Checkbox testing failed:', error);
-  }
-  
-  return checkboxResults;
-}
-
-/**
- * Get checkbox label text
- */
-async function getCheckboxLabel(page: Page, checkbox: any): Promise<string> {
-  try {
-    // Try to find associated label by 'for' attribute
-    const checkboxId = await checkbox.getAttribute('id');
-    if (checkboxId) {
-      const label = await page.locator(`label[for="${checkboxId}"]`).first();
-      if (await label.isVisible()) {
-        const text = await label.textContent();
-        if (text) return text.trim();
-      }
-    }
-    
-    // Try to find parent label
-    const parentLabel = await checkbox.evaluateHandle((el: Element) => {
-      let parent = el.parentElement;
-      while (parent && parent.tagName !== 'LABEL') {
-        parent = parent.parentElement;
-      }
-      return parent;
-    });
-    
-    if (parentLabel) {
-      const text = await parentLabel.evaluate((el: Element) => el.textContent);
-      if (text) return text.trim();
-    }
-    
-    // Try to find nearby text
-    const nearbyText = await checkbox.evaluateHandle((el: Element) => {
-      const next = el.nextSibling;
-      if (next && next.nodeType === Node.TEXT_NODE) {
-        return next.textContent;
-      }
-      const nextElement = el.nextElementSibling;
-      if (nextElement) {
-        return nextElement.textContent;
-      }
-      return null;
-    });
-    
-    if (nearbyText) {
-      const text = await nearbyText.evaluate((node: any) => node);
-      if (text) return String(text).trim();
-    }
-    
-    return 'Unknown Label';
-  } catch {
-    return 'Unknown Label';
-  }
-}
-
-/**
- * Helper function to get window sticker content
- */
-async function getWindowStickerContent(page: Page): Promise<string> {
-  try {
-    // Multiple strategies to extract window sticker content
-    // Workflow mentions: xpath=//div[contains(@class, 'window-sticker-details')]
-    const contentSelectors = [
-      // Primary selector from workflow
-      '//div[contains(@class, "window-sticker-details")]',
-      // Alternative window sticker container selectors
-      '//div[contains(@class, "window-sticker")]',
-      '//div[contains(@class, "monroney")]',
-      '//div[contains(@class, "factory-equipment")]',
-      '//div[@id="window-sticker-content"]',
-      '//div[contains(@class, "sticker-content")]',
-      // Look for sections directly
-      '//div[contains(text(), "Interior") and following-sibling::*[contains(text(), "Mechanical")]]/..',
-      // Iframe content
-      '//iframe[contains(@src, "sticker")]',
-      // Generic content containers
-      '//div[contains(@class, "content-main")]',
-      '//div[contains(@class, "equipment-details")]',
-      '//pre', // Sometimes content is in pre tags
-      'body' // Last resort - get all text
-    ];
-    
-    for (const selector of contentSelectors) {
-      try {
-        const element = page.locator(selector).first();
-        if (await element.isVisible({ timeout: 1000 })) {
-          // Handle iframe content
-          if (selector.includes('iframe')) {
-            const frame = page.frameLocator(selector).first();
-            const content = await frame.locator('body').textContent();
-            if (content && content.length > 100) {
-              return content;
-            }
-          } else {
-            const content = await element.textContent();
-            if (content && content.length > 100) { // Ensure meaningful content
-              return content;
-            }
-          }
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-    
-    // If no specific container found, get all text
-    const bodyText = await page.textContent('body');
-    return bodyText || '';
-    
-  } catch (error) {
-    console.warn('Failed to extract window sticker content:', error);
-  }
-  
-  return '';
-}
-
-/**
- * Helper function to extract features from sticker content
- * Based on workflow: sections like "Interior," "Mechanical," "Comfort & Convenience"
- */
-function extractFeaturesFromSticker(content: string): string[] {
-  const features: string[] = [];
-  
-  // First, try to extract features by section
-  const sections = {
-    interior: /Interior[:\s]*([\s\S]*?)(?=\n\s*(?:Mechanical|Comfort|Safety|Exterior|$))/i,
-    mechanical: /Mechanical[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Safety|Exterior|$))/i,
-    comfort: /(?:Comfort\s*&\s*Convenience|Convenience)[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Mechanical|Safety|Exterior|$))/i,
-    safety: /Safety[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Mechanical|Comfort|Exterior|$))/i
-  };
-  
-  // Extract features from each section
-  for (const [sectionName, sectionRegex] of Object.entries(sections)) {
-    const match = content.match(sectionRegex);
-    if (match && match[1]) {
-      const sectionContent = match[1];
-      // Split by common delimiters (newlines, bullets, commas)
-      const items = sectionContent.split(/[\n\r]+|\s*[•·-]\s*|\s*,\s*/);
-      
-      for (const item of items) {
-        const cleaned = item.trim();
-        // Skip empty lines or very short items
-        if (cleaned.length > 3 && !cleaned.match(/^[\s\d]*$/)) {
-          features.push(cleaned);
-        }
-      }
-    }
-  }
-  
-  // If no sections found, fall back to pattern matching
-  if (features.length === 0) {
-    // Split content into lines and look for feature-like items
-    const lines = content.split(/[\n\r]+/);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      // Look for lines that appear to be features (not headers or prices)
-      if (trimmed.length > 5 && 
-          trimmed.length < 100 && 
-          !trimmed.match(/^(Interior|Mechanical|Comfort|Safety|Exterior|MSRP|Price|Total)\s*:?$/i) &&
-          !trimmed.match(/\$[\d,]+/) &&
-          !trimmed.match(/^\d+$/)) {
-        features.push(trimmed);
-      }
-    }
-  }
-  
-  // Remove duplicates and clean up
-  const uniqueFeatures = [...new Set(features)].map(f => {
-    // Remove leading numbers or bullets
-    return f.replace(/^[\d\.\)\-\*]+\s*/, '').trim();
-  }).filter(f => f.length > 3);
-  
-  return uniqueFeatures;
-}
-
-/**
  * Fuzzy string matching utility functions
  */
 function calculateSimilarity(str1: string, str2: string): number {
-  // Simple fuzzy matching using Levenshtein distance ratio
   const distance = levenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
   const maxLength = Math.max(str1.length, str2.length);
   return maxLength === 0 ? 1 : (maxLength - distance) / maxLength;
@@ -1836,9 +1135,9 @@ function levenshteinDistance(str1: string, str2: string): number {
     for (let i = 1; i <= str1.length; i++) {
       const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
       matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,     // deletion
-        matrix[j - 1][i] + 1,     // insertion
-        matrix[j - 1][i - 1] + indicator   // substitution
+        matrix[j][i - 1] + 1,
+        matrix[j - 1][i] + 1,
+        matrix[j - 1][i - 1] + indicator
       );
     }
   }

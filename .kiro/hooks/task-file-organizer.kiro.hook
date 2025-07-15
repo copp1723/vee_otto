@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Task File Organizer",
+  "description": "Monitors for task completion events and automatically moves completed task files to their appropriate folders based on file type and task category",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "reports/*.json",
+      "reports/*.csv",
+      "reports/*.html",
+      "logs/*.log",
+      "screenshots/*.png",
+      "*.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A task has been completed and files need to be organized. Please analyze the completed task files and move them to the appropriate directories based on their type and content. For example: move report files to reports/, log files to logs/, screenshots to screenshots/, documentation to docs/, and archive old files to archive/ as needed. Ensure the directory structure remains clean and organized."
+  }
+}
