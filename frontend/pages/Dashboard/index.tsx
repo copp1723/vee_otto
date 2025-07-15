@@ -257,22 +257,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   return (
     <div className={styles.dashboardContainer}>
-      <div className="tabs mb-4 border-b">
+      <div className={styles.tabsContainer}>
         <button
-          className={`px-4 py-2 ${activeTab === 'dashboard' ? 'border-b-2 border-blue-500' : ''}`}
+          className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('dashboard')}
         >
           Dashboard
         </button>
         {isDev && (
           <button
-            className={`px-4 py-2 ${activeTab === 'mockup' ? 'border-b-2 border-blue-500' : ''}`}
+            className={`${styles.tab} ${activeTab === 'mockup' ? styles.tabActive : ''}`}
             onClick={() => setActiveTab('mockup')}
           >
             Test Mockup
           </button>
         )}
-
       </div>
       {activeTab === 'dashboard' ? (
         <div className={styles.dashboard}>

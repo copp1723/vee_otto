@@ -5,6 +5,7 @@ import { InventoryFilterService } from '../../../core/services/InventoryFilterSe
 import { VehicleValidationService } from '../../../core/services/VehicleValidationService';
 import { CheckboxMappingService } from '../../../core/services/CheckboxMappingService';
 import { SemanticFeatureMappingService } from '../../../core/services/SemanticFeatureMappingService';
+import { IntelligentAnomalyDetector, VehicleAnomalyData } from '../../../core/services/IntelligentAnomalyDetector';
 import { Page, Locator } from 'playwright';
 import { reliableClick } from '../../../core/utils/reliabilityUtils';
 import { vAutoSelectors } from '../vautoSelectors';
@@ -480,6 +481,13 @@ export const processVehicleInventoryTask: TaskDefinition = {
           const vehicleResult = await validationService.extractVehicleData();
           vehicleData = vehicleResult.vehicleData;
           
+          // Initialize anomaly detector for this vehicle
+          const anomalyDetector = new IntelligentAnomalyDetector({
+            pricingThreshold: 0.25,
+            enableSMSAlerts: false,
+            logger
+          });
+          
           if (!vehicleResult.success) {
             errors.push(`Failed to extract vehicle data: ${vehicleResult.error}`);
           }
@@ -730,6 +738,35 @@ export const processVehicleInventoryTask: TaskDefinition = {
                   .filter(action => action.action !== 'none')
                   .map(action => `${action.label} (${action.action})`);
                 logger.info(`✅ Updated ${checkboxResult.checkboxesUpdated} checkboxes`);
+                
+                // Run anomaly detection on processed vehicle data
+                try {
+                  const anomalyData: VehicleAnomalyData = {
+                    vin: vehicleData.vin,
+                    year: vehicleData.year ? parseInt(vehicleData.year) : undefined,
+                    make: vehicleData.make,
+                    model: vehicleData.model,
+                    features: featuresFound,
+                    // Note: Price and mileage would need to be extracted from additional sources
+                    // This is a minimal implementation focusing on feature anomalies
+                  };
+                  
+                  const anomalyReport = await anomalyDetector.analyzeVehicle(anomalyData);
+                  
+                  if (anomalyReport.totalAnomalies > 0) {
+                    logger.warn(`🚨 ${anomalyReport.totalAnomalies} anomalies detected for ${vehicleData.vin}:`);
+                    anomalyReport.anomalies.forEach(anomaly => {
+                      logger.warn(`  - ${anomaly.type}: ${anomaly.message} (${anomaly.severity})`);
+                    });
+                    
+                    // Add anomaly info to errors for reporting
+                    errors.push(`Anomalies detected: ${anomalyReport.overallRisk} risk level`);
+                  } else {
+                    logger.info(`✅ No anomalies detected for ${vehicleData.vin}`);
+                  }
+                } catch (anomalyError) {
+                  logger.warn('Anomaly detection failed:', anomalyError);
+                }
               } else {
                 errors.push(...checkboxResult.errors);
               }

@@ -12,6 +12,11 @@ export interface DashboardMetrics {
         amount: number;
         formatted: string;
     };
+    anomaliesDetected?: {
+        total: number;
+        highRisk: number;
+        estimatedLoss: number;
+    };
 }
 export interface ActionQueueItem {
     id: string;
@@ -19,9 +24,11 @@ export interface ActionQueueItem {
     year: number;
     make: string;
     model: string;
-    issueType: 'NO_STICKER' | 'LOW_CONFIDENCE' | 'MISSING_DATA';
+    issueType: 'NO_STICKER' | 'LOW_CONFIDENCE' | 'MISSING_DATA' | 'ANOMALY_DETECTED';
     issueDescription: string;
     estimatedTime: number;
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    anomalyType?: 'PRICING' | 'FEATURE' | 'MILEAGE' | 'BOOK_VALUE';
 }
 export interface RecentCompletion {
     id: string;

@@ -1,0 +1,1 @@
+rm scripts/commit_aesthetic_improvements.sh scripts/commit_semantic_mapping.sh
