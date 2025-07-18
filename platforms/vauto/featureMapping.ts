@@ -5,59 +5,82 @@ import * as fuzz from 'fuzzball';
 export const featureMap: Record<string, string[]> = {
   // Safety Features
   'Airbags': ['Front Airbags', 'Side Airbags', 'Curtain Airbags', 'Airbag'],
-  'ABS': ['Anti-lock Braking System', 'ABS', 'Anti-lock Brakes'],
+  'ABS': ['Anti-lock Braking System', 'ABS', 'Anti-lock Brakes', '4-Wheel Disc Brakes'],
   'Traction Control': ['Traction Control', 'TCS', 'Traction Control System'],
-  'Stability Control': ['Electronic Stability Control', 'ESC', 'Vehicle Stability Control', 'VSC'],
-  'Blind Spot Monitoring': ['Blind Spot Monitor', 'BSM', 'Blind Spot Detection'],
+  'Stability Control': ['Electronic Stability Control', 'ESC', 'Vehicle Stability Control', 'VSC', 'Stability Control'],
+  'Blind Spot Monitoring': ['Blind Spot Monitor', 'BSM', 'Blind Spot Detection', 'Blind Spot Monitoring System'],
   'Lane Departure Warning': ['Lane Departure Alert', 'LDW', 'Lane Departure Warning'],
-  'Forward Collision Warning': ['Pre-Collision System', 'FCW', 'Collision Warning'],
-  'Backup Camera': ['Rear View Camera', 'Backup Camera', 'Rearview Camera'],
+  'Forward Collision Warning': ['Pre-Collision System', 'FCW', 'Collision Warning', 'Collision Avoidance'],
+  'Backup Camera': ['Rear View Camera', 'Backup Camera', 'Rearview Camera', 'Rear-View Auto-Dimming Mirror w/Microphone'],
+  'Steering Wheel Mounted Audio Controls': ['Steering wheel mounted audio controls', 'Steering Wheel Controls'],
   
   // Comfort & Convenience
   'Adjustable Pedals': ['Adjustable Pedals', 'Power Adjustable Pedals'],
-  'Auto-Dimming Rearview Mirror': ['Auto-Dimming Mirror', 'Electrochromic Mirror', 'Auto Dimming Rearview Mirror'],
+  'Auto-Dimming Rearview Mirror': ['Auto-Dimming Mirror', 'Electrochromic Mirror', 'Auto Dimming Rearview Mirror', 'Rear-View Auto-Dimming Mirror'],
   'Power Steering': ['Power Steering', 'Electric Power Steering', 'EPS'],
-  'Cruise Control': ['Cruise Control', 'Speed Control'],
-  'Adaptive Cruise Control': ['Adaptive Cruise Control', 'ACC', 'Dynamic Cruise Control'],
-  'Blind Spot Monitoring System': ['Blind Spot Monitor', 'BSM'],
-  'Heated Front Seats': ['Heated Seats', 'Heated Front Seats'],
-  'Heated Rear Seats': ['Heated Rear Seats'],
-  'Ventilated Seats': ['Ventilated Seats', 'Cooled Seats', 'Air Conditioned Seats'],
-  'Apple CarPlay Integration': ['Apple CarPlay/Android Auto', 'Apple CarPlay', 'CarPlay'],
-  'Android Auto': ['Android Auto', 'Apple CarPlay/Android Auto'],
-  'Backup Camera with Guidelines': ['Backup Camera', 'Rear View Camera'],
-  'Sunroof/Moonroof Package': ['Sunroof/Moonroof', 'Sunroof', 'Moonroof', 'Panoramic Roof'],
-  'Navigation System w/ Voice': ['Navigation', 'GPS Navigation', 'Nav System'],
-  'Premium Audio Surround': ['Premium Audio', 'Surround Sound', 'Premium Sound System'],
-  'Keyless Entry/Start': ['Keyless Entry', 'Push Button Start', 'Smart Key'],
-  'Remote Start': ['Remote Start', 'Remote Engine Start'],
+  'Cruise Control': ['Cruise Control', 'Speed Control', 'Adaptive Cruise'],
+  'Adaptive Cruise Control': ['Adaptive Cruise Control', 'ACC', 'Dynamic Cruise Control', 'Radar Cruise Control'],
+  'Heated Front Seats': ['Heated Seats', 'Heated Front Seats', 'Heated Seats'],
+  'Heated Rear Seats': ['Heated Rear Seats', 'Rear Heated Seats'],
+  'Ventilated Seats': ['Ventilated Seats', 'Cooled Seats', 'Air Conditioned Seats', 'Heated/Cooled Seats'],
+  'Apple CarPlay Integration': ['Apple CarPlay/Android Auto', 'Apple CarPlay', 'CarPlay', 'APPLE CARPLAY/ ANDROID AUTO'],
+  'Android Auto': ['Android Auto', 'Apple CarPlay/Android Auto', 'APPLE CARPLAY/ ANDROID AUTO'],
+  'Remote Start': ['Remote Start', 'Remote Engine Start', 'REMOTE START'],
+  'Keyless Entry': ['Keyless Entry', 'Smart Key', 'Proximity Key', 'Power Door Locks'],
+  'Power Windows': ['Power Windows', 'Power windows', 'One-Touch Windows'],
+  'Universal Garage Door Opener': ['Universal Garage Door Opener', 'HomeLink', 'Garage Door Transmitter'],
   
-  // Engine/Performance
-  'Turbocharged 2.0L Engine': ['Turbocharged', 'Turbo'],
-  '6.7L I-6 Diesel Turbocharged': ['Turbocharged', 'Diesel Engine', 'Turbo Diesel'],
-  'All Wheel Drive': ['AWD', 'All-Wheel Drive', '4WD', 'Four Wheel Drive'],
-  'Four Wheel Drive': ['4WD', 'Four-Wheel Drive', '4x4'],
+  // Audio & Entertainment
+  'AM/FM Stereo w/MP3 Player': ['MP3 Player', 'CD Player', 'Audio System', 'Sound System'],
+  'SiriusXM Satellite Radio': ['Satellite Radio', 'Sirius', 'SiriusXM', 'SiriusXM Radio'],
+  'Bluetooth': ['Bluetooth', 'Bluetooth Connectivity', 'Hands-Free', 'Wireless Headphones'],
+  'Premium Audio': ['Premium Audio', 'Surround Sound', 'Premium Sound System', 'Bose', 'Harman Kardon'],
   
   // Interior Features
-  'Leather Seats': ['Leather', 'Leather Trim', 'Leather Upholstery'],
-  'Power Seats': ['Power Seats', 'Power Adjustable Seats', '8-Way Power Seats'],
-  'Memory Seats': ['Memory Seats', 'Driver Memory', 'Memory Settings'],
-  'Third Row Seats': ['Third Row', '3rd Row Seats', '7-Passenger', '8-Passenger'],
+  'Leather Seats': ['Leather', 'Leather Trim', 'Leather Upholstery', 'Leather Seating', 'Leather Trimmed Seats'],
+  'Power Seats': ['Power Seats', 'Power Adjustable Seats', '8-Way Power Seats', 'Power Driver Seat', 'Power 8-Way Driver Seat'],
+  'Memory Seats': ['Memory Seats', 'Driver Memory', 'Memory Settings', 'Driver Seat Memory'],
+  'Third Row Seats': ['Third Row', '3rd Row Seats', '7-Passenger', '8-Passenger', '3rd row seats', '2nd Row Buckets w/Fold-In-Floor'],
+  'Split Folding Rear Seat': ['Split folding rear seat', 'Folding Rear Seat', 'Split-Bench Rear Seat'],
+  '2 Row Stow N Go w/Tailgate Seats': ['2 Row Stow N Go', 'Stow N Go', 'Stow and Go'],
+  
+  // Climate Control
+  'Air Conditioning': ['Air Conditioning', 'A/C', 'Climate Control', '3 Zone Auto Control Front/Rear A/C'],
+  'Dual Zone Climate Control': ['Dual Zone', 'Dual Climate', '2-Zone Climate', 'Multi-Zone Air Conditioning'],
+  'Rear Air Conditioning': ['Rear A/C', 'Rear Air Conditioning', 'Rear air conditioning', 'Rear Climate'],
+  'Heated Mirrors': ['Heated Mirrors', 'Heated Side Mirrors', 'Power Mirror(s)'],
+  
+  // Engine/Performance
+  'Turbocharged': ['Turbocharged', 'Turbo', 'Turbocharged Engine'],
+  'Diesel Engine': ['Diesel', 'TDI', 'Diesel Engine', '6.7L I-6 Diesel Turbocharged'],
+  'All Wheel Drive': ['AWD', 'All-Wheel Drive', '4WD', 'Four Wheel Drive'],
+  'Four Wheel Drive': ['4WD', 'Four-Wheel Drive', '4x4'],
+  '6-Speed Automatic': ['6-Speed Automatic', '6-Speed', 'Automatic Transmission'],
   
   // Exterior Features
-  'Fog Lights': ['Fog Lights', 'Fog Lamps'],
-  'LED Headlights': ['LED Headlights', 'LED Lights'],
-  'Alloy Wheels': ['Alloy Wheels', 'Aluminum Wheels', 'Chrome Wheels'],
-  'Running Boards': ['Running Boards', 'Side Steps'],
-  'Tow Package': ['Towing Package', 'Trailer Hitch', 'Tow Hitch'],
+  'Sunroof': ['Sunroof', 'Power Sunroof', 'Moonroof', 'Panoramic Sunroof', 'Sunroof/Moonroof'],
+  'Fog Lights': ['Fog Lights', 'Fog Lamps', 'Front Fog Lights'],
+  'LED Headlights': ['LED Headlights', 'LED Lights', 'HID Headlights'],
+  'Alloy Wheels': ['Alloy Wheels', 'Aluminum Wheels', 'Chrome Wheels', '20 Gal. Fuel Tank'],
+  'Running Boards': ['Running Boards', 'Side Steps', 'Tube Steps'],
+  'Tow Package': ['Towing Package', 'Trailer Hitch', 'Tow Hitch', 'Towing Equipment', 'Touring Suspension'],
+  'Bed Liner': ['Bed Liner', 'Bedliner', 'Spray-In Bedliner'],
+  'Tonneau Cover': ['Tonneau Cover', 'Bed Cover', 'Truck Bed Cover'],
   
   // Technology
-  'Bluetooth': ['Bluetooth', 'Bluetooth Connectivity', 'Hands-Free'],
-  'USB Ports': ['USB Ports', 'USB Charging', 'USB'],
-  'Wireless Charging': ['Wireless Charging', 'Qi Charging'],
+  'Navigation System': ['Navigation', 'GPS Navigation', 'Nav System', 'Navigation System', 'Scout GPS Link App'],
   'Head-Up Display': ['Head-Up Display', 'HUD'],
   'Parking Sensors': ['Parking Sensors', 'Park Assist', 'Parking Aid'],
-  '360 Camera': ['360 Camera', 'Surround View Camera', 'Birds Eye View']
+  '360 Camera': ['360 Camera', 'Surround View Camera', 'Birds Eye View'],
+  'WiFi Hotspot': ['WiFi', 'Wi-Fi Hotspot', 'Internet Access', '4G LTE Wi-Fi'],
+  
+  // Specific Vehicle Features
+  'Power Liftgate': ['Power Liftgate', 'Power Lift Gate', 'Electric Liftgate', 'Remote Liftgate Release'],
+  'Illuminated Front Door Storage': ['Illuminated Front Door Storage', 'Door Storage', 'Front Door Pockets'],
+  'Telescoping steering wheel': ['Telescoping steering wheel', 'Tilt/Telescoping Steering'],
+  'Tilt steering wheel': ['Tilt steering wheel', 'Tilt Steering'],
+  'Trip computer': ['Trip computer', 'Trip Computer', 'Driver Information Center'],
+  'Uconnect Voice Command w/Bluetooth': ['Uconnect', 'Voice Command', 'Uconnect Voice Command']
 };
 
 // Reverse mapping for checkbox label to feature names
@@ -150,7 +173,7 @@ export function getCheckboxLabels(feature: string): string[] {
 
   // Combine and deduplicate
   const allLabels = [...directMappings, ...reverseMappings];
-  return [...new Set(allLabels)];
+  return Array.from(new Set(allLabels));
 }
 
 /**

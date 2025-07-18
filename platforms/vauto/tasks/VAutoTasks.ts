@@ -344,6 +344,10 @@ export const processVehicleInventoryTask: TaskDefinition = {
     const runId = `run-${Date.now()}`;
     const startTime = new Date();
     
+    // Declare variables needed throughout the function
+    let navigationSuccess = false;
+    let usedSelector = '';
+    
     const results = {
       totalVehicles: 0,
       processedVehicles: 0,
@@ -360,93 +364,19 @@ export const processVehicleInventoryTask: TaskDefinition = {
       // Wait for grid to be ready
       await page.waitForTimeout(5000);
       
-      // NEW: More specific approach to find clickable vehicle links
-      logger.info('🔍 Detecting vehicles using refined selectors...');
-      
-      // First, try to find the exact column containing the main vehicle link
-      // Usually it's the year/make/model column or the first column with a link
-      const vehicleLinkSelectors = [
-        // Target the specific cell that contains the main vehicle link
-        '//tr[contains(@class, "x-grid3-row")]//td[position()=1 or position()=2]//a[contains(@href, "javascript") or contains(@onclick, "OpenVehicle") or contains(@onclick, "viewVehicle")]',
-        // Look for links with specific onclick patterns
-        '//tr[contains(@class, "x-grid3-row")]//a[contains(@onclick, "OpenVehicle") or contains(@onclick, "viewVehicle") or contains(@onclick, "ShowVehicle")]',
-        // Target first link in each row (usually the main one)
-        '//tr[contains(@class, "x-grid3-row")]//td[1]//a[1]',
-        // Year/Make/Model column specifically
-        '//tr[contains(@class, "x-grid3-row")]//td[contains(@class, "x-grid3-col-model") or contains(@class, "x-grid3-col-year")]//a',
-        // Fallback: first link that's not a VIN or stock number
-        '//tr[contains(@class, "x-grid3-row")]//a[not(contains(@class, "vin")) and not(contains(@class, "stock"))][1]'
-      ];
-      
-      let vehicleLinks: Locator[] = [];
-      let detailedLinks: VehicleLink[] = [];
-      let usedSelector = '';
-      
-      for (const selector of vehicleLinkSelectors) {
-        const links = await page.locator(selector).all();
-        if (links.length > 0 && links.length <= 25) { // Reasonable number of links (1 per vehicle)
-          vehicleLinks = links;
-          usedSelector = selector;
-          logger.info(`✅ Found ${links.length} vehicle links using selector: ${selector}`);
-          break;
-        }
-      }
-      
-      // If still no links or too many, try row-by-row approach
-      if (vehicleLinks.length === 0 || vehicleLinks.length > 25) {
-        logger.info('⚠️ Using row-by-row approach to find vehicle links...');
-        const rows = await page.locator('//tr[contains(@class, "x-grid3-row")]').all();
-        vehicleLinks = [];
-        
-        for (const row of rows) {
-          // Find the first meaningful link in each row
-          const rowLinks = await row.locator('a').all();
-          if (rowLinks.length > 0) {
-            // Use validation service to identify vehicle detail links
-            const validationService = new VehicleValidationService(page, logger);
-            for (const link of rowLinks) {
-              if (await validationService.isVehicleDetailLink(link)) {
-                vehicleLinks.push(link);
-                break; // Only take first good link per row
-              }
-            }
-            
-            // If no good link found, take the first one
-            if (vehicleLinks.length < rows.indexOf(row) + 1) {
-              vehicleLinks.push(rowLinks[0]);
-            }
-          }
-        }
-        logger.info(`✅ Found ${vehicleLinks.length} unique vehicle links (1 per row)`);
-      }
-      
-      // ENHANCEMENT 1: Enhanced vehicle link metadata collection
-      for (let i = 0; i < vehicleLinks.length; i++) {
-        const link = vehicleLinks[i];
-        detailedLinks.push({
-          locator: link,
-          text: await link.textContent() || '',
-          href: await link.getAttribute('href') || '',
-          onclick: await link.getAttribute('onclick') || '',
-          index: i
-        });
-      }
-      
-      // Enhanced debugging info with metadata
-      if (detailedLinks.length > 0) {
-        const firstLink = detailedLinks[0];
-        logger.info(`📋 Enhanced Sample Link - Text: "${firstLink.text}", Href: "${firstLink.href}", Onclick: "${firstLink.onclick}"`);
-        logger.info(`📊 Link Quality Assessment: ${detailedLinks.filter(link => link.onclick !== '').length}/${detailedLinks.length} links have onclick handlers`);
-      }
-      
+      // NEW: Bulletproof vehicle link selector and click logic
+      logger.info('🔍 Detecting vehicles using bulletproof selector...');
+      const vehicleLinkSelector = "//a[contains(@class, 'YearMakeModel') and @onclick]";
+      // Set the usedSelector for reporting
+      usedSelector = vehicleLinkSelector;
+      // Find all vehicle links on the inventory page (should be one per vehicle)
+      const vehicleLinks = await page.locator(vehicleLinkSelector).all();
+      logger.info(`✅ Found ${vehicleLinks.length} vehicle links using bulletproof selector: ${vehicleLinkSelector}`);
       results.totalVehicles = vehicleLinks.length;
-      
       logger.info(`Found ${results.totalVehicles} vehicles to process`);
-      
       // Process each vehicle (limit for testing)
       const maxVehicles = config.maxVehiclesToProcess || results.totalVehicles;
       const vehiclesToProcess = Math.min(vehicleLinks.length, maxVehicles);
-      
       for (let i = 0; i < vehiclesToProcess; i++) {
         const vehicleStartTime = Date.now();
         let processed = false;
@@ -454,56 +384,73 @@ export const processVehicleInventoryTask: TaskDefinition = {
         let featuresUpdated: string[] = [];
         let errors: string[] = [];
         let tabSuccess = false;
-        let navigationSuccess = false;
         let vehicleData: any = null;
-
         try {
           logger.info(`Processing vehicle ${i + 1}/${vehiclesToProcess}...`);
-          
           // Store current URL to verify navigation
           const beforeClickUrl = page.url();
-          
-          // Record navigation start time
-          const navStartTime = Date.now();
-          
-          // Click the vehicle link with improved error handling
+          const link = vehicleLinks[i];
+          let clicked = false;
           try {
-            await vehicleLinks[i].click();
-            navigationSuccess = true;
-          } catch (clickError) {
-            logger.warn('Direct click failed, trying force click...');
-            await vehicleLinks[i].click({ force: true });
-            navigationSuccess = true;
+            await link.click({ timeout: 4000 });
+            clicked = true;
+          } catch {
+            try {
+              await link.click({ force: true, timeout: 4000 });
+              clicked = true;
+            } catch {
+              await link.evaluate(node => (node as HTMLElement).click());
+              clicked = true;
+            }
+          }
+          if (!clicked) throw new Error('All click methods failed on vehicle link');
+          // Wait for modal to open (vehicles open in modal, not new page)
+          await page.waitForTimeout(2000);
+          
+          // Check for vehicle modal instead of URL change
+          const modalSelectors = [
+            '.x-window', // ExtJS modal window
+            '#GaugePageIFrame', // The iframe that contains vehicle details
+            '//div[contains(@class, "x-window") and contains(@style, "visible")]',
+            '//div[@role="dialog"]'
+          ];
+          
+          let modalFound = false;
+          for (const selector of modalSelectors) {
+            if (await page.locator(selector).isVisible({ timeout: 3000 }).catch(() => false)) {
+              modalFound = true;
+              logger.info(`✅ Vehicle modal opened with selector: ${selector}`);
+              break;
+            }
           }
           
-          // Wait for navigation with verification
-          await page.waitForLoadState('networkidle');
-          await page.waitForTimeout(3000);
-          
-          // Verify we navigated away from the inventory page
-          const afterClickUrl = page.url();
-          if (afterClickUrl === beforeClickUrl) {
-            throw new Error('Navigation failed - still on same page');
+          if (!modalFound) {
+            logger.error(`Modal did not open after clicking vehicle ${i + 1}.`);
+            throw new Error('Vehicle modal did not open');
           }
-          
+
           // Additional verification: check for vehicle details elements
           const detailsLoaded = await page.locator('//a[contains(text(), "Vehicle Info")] | //div[contains(@class, "vehicle-details")] | //*[@id="GaugePageIFrame"]').first().isVisible({ timeout: TIMEOUTS.PAGE_LOAD }).catch(() => false);
-          
+
+          // Set navigationSuccess based on whether details loaded
+          navigationSuccess = detailsLoaded;
+
           // Record navigation metrics
+          const navStartTime = vehicleStartTime; // Use vehicleStartTime for navigation timing
           NavigationMetrics.recordNavigationAttempt(i, navStartTime, {
-            success: detailsLoaded,
-            navigationMethod: navigationSuccess ? 'primary' : 'fallback',
-            url: afterClickUrl,
-            error: detailsLoaded ? undefined : 'Vehicle details page not loaded'
+            success: modalFound && detailsLoaded,
+            navigationMethod: 'modal',
+            url: page.url(),
+            error: !modalFound ? 'Modal did not open' : (!detailsLoaded ? 'Vehicle details not loaded' : undefined)
           });
           NavigationMetrics.recordOperationTime(i, 'navigation', Date.now() - navStartTime);
-          
+
           if (!detailsLoaded) {
             logger.warn('Vehicle details page may not have loaded properly');
             // Take debug screenshot
             await page.screenshot({ path: `screenshots/vehicle-${i + 1}-navigation-issue.png` });
           }
-          
+
           await page.screenshot({ path: `screenshots/vehicle-${i + 1}-details-page.png` });
 
           // Extract vehicle data
@@ -544,22 +491,43 @@ export const processVehicleInventoryTask: TaskDefinition = {
           }
           
           await page.screenshot({ path: `screenshots/before-factory-tab.png` });
+          
+          // STEP 1.5: Ensure we're on Vehicle Info tab first
+          logger.info('📋 STEP 1.5/5: Ensuring Vehicle Info tab is active...');
+          try {
+            // Import the helper function
+            const { ensureVehicleInfoTab } = await import('../../../fix-vehicle-info-tab-click');
+            const onVehicleInfo = await ensureVehicleInfoTab(page, logger);
+            
+            if (!onVehicleInfo) {
+              logger.warn('Could not ensure Vehicle Info tab is active, continuing anyway...');
+            }
+          } catch (tabError) {
+            logger.warn('Error ensuring Vehicle Info tab:', tabError);
+          }
+          
           logger.info('🕵️‍♂️ STEP 2/5: Navigating to Factory Equipment tab...');
           
           // ENHANCEMENT 2: Named navigation strategies for better debugging/metrics
           const tabNavigationStrategies: NavigationStrategy[] = [
             {
-              name: 'iframe-id-selector',
+              name: 'iframe-table-selector',
               execute: async () => {
                 if (factoryFrame) {
                   try {
-                    // The workflow specifies id=ext-gen201 for Factory Equipment tab
-                    await factoryFrame.locator('#ext-gen201').click();
+                    // Try the table ID first
+                    await factoryFrame.locator('#factory-equipment').click();
                     return true;
                   } catch (e) {
-                    // Try text-based selector in iframe
-                    await factoryFrame.locator('//a[contains(text(), "Factory Equipment")] | //span[contains(text(), "Factory Equipment")]').first().click();
-                    return true;
+                    try {
+                      // Try clicking the button inside the table
+                      await factoryFrame.locator('#factory-equipment button').click();
+                      return true;
+                    } catch (e2) {
+                      // Try the specific button ID
+                      await factoryFrame.locator('#ext-gen191').click();
+                      return true;
+                    }
                   }
                 }
                 return false;
@@ -567,10 +535,16 @@ export const processVehicleInventoryTask: TaskDefinition = {
             },
             
             {
-              name: 'direct-id-selector',
+              name: 'direct-table-selector',
               execute: async () => {
-                // The workflow specifies id=ext-gen201
-                return await reliableClick(page, '#ext-gen201', 'Factory Equipment Tab');
+                // Try clicking the table with id="factory-equipment"
+                try {
+                  await page.locator('#factory-equipment').click();
+                  return true;
+                } catch (e) {
+                  // Try clicking the button inside the table
+                  return await reliableClick(page, '#factory-equipment button', 'Factory Equipment Button');
+                }
               }
             },
             
@@ -578,11 +552,11 @@ export const processVehicleInventoryTask: TaskDefinition = {
               name: 'alternative-selectors',
               execute: async () => {
                 const selectors = [
-                  vAutoSelectors.vehicleDetails.factoryEquipmentTab,
-                  '#ext-gen175', // Alternative ID from selectors
-                  '//a[contains(text(), "Factory Equipment")]',
-                  '//span[contains(text(), "Factory Equipment")]',
-                  '//div[contains(@class, "x-tab") and contains(text(), "Factory Equipment")]'
+                  vAutoSelectors.vehicleDetails.factoryEquipmentTab, // Now uses #factory-equipment
+                  '#factory-equipment button.x-btn-text', // Button inside table
+                  '#ext-gen191', // Specific button ID from HTML
+                  '//table[@id="factory-equipment"]//button',
+                  '//button[contains(@class, "x-btn-text") and contains(text(), "Factory Equipment")]'
                 ];
                 for (const selector of selectors) {
                   if (await reliableClick(page, selector, 'Factory Equipment Tab')) {
@@ -597,13 +571,19 @@ export const processVehicleInventoryTask: TaskDefinition = {
               name: 'javascript-extjs-click',
               execute: async () => {
                 return await page.evaluate(() => {
-                  // Try the specific ID from workflow first
-                  const tabElement = document.querySelector('#ext-gen201') ||
-                                    document.querySelector('#ext-gen175') ||
-                                    document.querySelector('a[id*="ext-gen"][href*="Factory"]') ||
-                                    Array.from(document.querySelectorAll('.x-tab-strip-text')).find(el => el.textContent?.includes('Factory'));
-                  if (tabElement) {
-                    (tabElement as HTMLElement).click();
+                  // Try the table ID first
+                  const tableElement = document.querySelector('#factory-equipment');
+                  if (tableElement) {
+                    (tableElement as HTMLElement).click();
+                    return true;
+                  }
+                  
+                  // Try the button inside the table
+                  const buttonElement = document.querySelector('#factory-equipment button') ||
+                                      document.querySelector('#ext-gen191') ||
+                                      document.querySelector('button.x-btn-text');
+                  if (buttonElement && buttonElement.textContent?.includes('Factory')) {
+                    (buttonElement as HTMLElement).click();
                     return true;
                   }
                   return false;
@@ -1146,8 +1126,8 @@ async function processVehicleFeatures(page: Page, vehicleIndex: number, config: 
                   // Try multiple save button selectors
                   const saveSelectors = [
                     vAutoSelectors.vehicleDetails.saveButton,
-                    vAutoSelectors.vehicleDetails.saveButtonCSS,
                     vAutoSelectors.vehicleDetails.saveButtonAlt,
+                    vAutoSelectors.vehicleDetails.saveAndSyncButton,
                     '//button[contains(text(), "Save")]',
                     '//button[contains(@class, "save")]'
                   ];

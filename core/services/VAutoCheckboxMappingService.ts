@@ -43,9 +43,35 @@ export class VAutoCheckboxMappingService extends CheckboxMappingService {
     
     // Comfort mappings
     mapping.set('Air Conditioning', ['Air Conditioning', 'A/C', 'Climate Control']);
-    mapping.set('Power Windows', ['Power Windows', 'Electric Windows']);
-    mapping.set('Power Locks', ['Power Locks', 'Power Door Locks', 'Electric Locks']);
+    mapping.set('Power Windows', ['Power Windows', 'Electric Windows', 'Windows']);
+    mapping.set('Power Locks', ['Power Locks', 'Power Door Locks', 'Electric Locks', 'Locks']);
     mapping.set('Remote Start', ['Remote Start', 'Remote Engine Start']);
+    
+    // Additional mappings from handoff guide
+    mapping.set('Power Door Locks', ['Power Locks', 'Power Door Locks']);
+    mapping.set('Bluetooth Connectivity', ['Bluetooth']);
+    mapping.set('Front Airbags', ['Airbags', 'Front Airbags']);
+    mapping.set('Side Airbags', ['Airbags', 'Side Airbags']);
+    
+    // Engine-specific mappings for better coverage
+    mapping.set('6.7L I-6 Diesel Turbocharged', ['Diesel Engine', 'Turbocharged Engine', '6.7L Engine', 'Turbo Diesel']);
+    mapping.set('6.7L Cummins Turbo Diesel', ['Diesel Engine', 'Cummins Engine', '6.7L Engine', 'Cummins Diesel']);
+    mapping.set('Heavy Duty Transmission', ['Heavy Duty Trans', 'HD Transmission', 'Heavy-Duty Transmission']);
+    mapping.set('Engine Block Heater', ['Block Heater', 'Engine Heater']);
+    
+    // Seat mappings
+    mapping.set('Power Driver Seat', ['Power Seats', 'Power Driver Seat', 'Power Front Seats', 'Power Drivers Seat']);
+    mapping.set('Heated Front Seats', ['Heated Seats', 'Heated Front Seats', 'Front Heated Seats']);
+    mapping.set('Cooled Seats', ['Ventilated Seats', 'Cooled Seats', 'Air Conditioned Seats']);
+    
+    // Technology mappings
+    mapping.set('Remote Start System', ['Remote Start', 'Remote Engine Start', 'Remote Starter']);
+    mapping.set('Keyless Entry', ['Keyless Entry', 'Remote Keyless Entry', 'RKE']);
+    mapping.set('Push Button Start', ['Push Button Start', 'Push-Button Start', 'Pushbutton Start']);
+    
+    // Towing/Utility mappings
+    mapping.set('Trailer Hitch', ['Trailer Hitch', 'Tow Hitch', 'Hitch Receiver']);
+    mapping.set('Tow Package', ['Towing Package', 'Tow Package', 'Trailer Tow Package']);
     
     return mapping;
   }

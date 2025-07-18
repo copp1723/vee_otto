@@ -11,6 +11,8 @@ import {
 import { Logger } from '../../core/utils/Logger';
 import { MailgunProvider } from '../../integrations/email/MailgunProvider';
 import { SMTPProvider } from '../../integrations/email/SMTPProvider';
+import { EnhancedWindowStickerService } from './services/WindowStickerService';
+import { VehicleModalNavigationService } from './services/VehicleModalNavigationService';
 import * as process from 'process';
 import * as fuzz from 'fuzzball';
 
@@ -43,8 +45,11 @@ export interface VAutoRunResult {
   errors: string[];
 }
 
+import { ErrorHandlingService } from '../../core/services/ErrorHandlingService';
+
 export class VAutoAgent extends BaseAgent {
   private mailgunService: MailgunProvider | null = null;
+  private errorHandlingService: ErrorHandlingService | null = null;
   protected currentRunResult: VAutoRunResult;
   protected page: Page | null = null;
   
@@ -73,6 +78,14 @@ export class VAutoAgent extends BaseAgent {
   async initialize(): Promise<void> {
     await super.initialize();
     this.page = this.browser.currentPage;
+    if (this.page) {
+      this.errorHandlingService = new ErrorHandlingService(this.page, this.logger, {
+        maxRetries: 3,
+        retryDelay: 2000,
+        enableRecovery: true,
+        captureScreenshots: process.env.SCREENSHOT_ON_ERROR === 'true'
+      });
+    }
   }
 
   // Implement abstract method from BaseAgent
@@ -512,41 +525,81 @@ export class VAutoAgent extends BaseAgent {
     
     try {
       // Get VIN
-      result.vin = await this.getVehicleVIN();
+      const vinResult = await this.errorHandlingService!.executeWithErrorHandling(
+        () => this.getVehicleVIN(),
+        { step: 'get_vin' }
+      );
+      result.vin = vinResult || '';
       this.logger.info(`Processing vehicle: ${result.vin}`);
-      
-      // Navigate to Factory Equipment tab
-      await reliableClick(this.page!, vAutoSelectors.vehicleDetails.factoryEquipmentTab, 'Factory Equipment Tab');
+
+      // Use VehicleModalNavigationService to ensure we're on Vehicle Info tab and click Factory Equipment
+      const navigationService = new VehicleModalNavigationService(this.page!, this.logger);
+      const navResult = await this.errorHandlingService!.executeWithErrorHandling(
+        () => navigationService.clickFactoryEquipmentWithTabVerification(),
+        { step: 'navigate_factory_equipment', vehicleVin: result.vin }
+      );
+      if (!navResult) {
+        throw new Error('Failed to navigate to Factory Equipment');
+      }
       await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
-      
-      // Get window sticker content
-      const stickerText = await this.getWindowStickerContent();
-      
-      if (!stickerText) {
+
+      // Extract window sticker content using enhanced service
+      const windowStickerService = new EnhancedWindowStickerService(this.page!);
+      const stickerResult = await this.errorHandlingService!.executeWithErrorHandling(
+        () => windowStickerService.extractFromPopup(),
+        { step: 'extract_window_sticker', vehicleVin: result.vin }
+      );
+      if (!stickerResult?.rawContent) {
         throw new Error('Could not retrieve window sticker content');
       }
-      
-      // Parse features from sticker
-      const { features } = parseWindowStickerText(stickerText);
-      result.featuresFound = features;
-      
-      this.logger.info(`Found ${features.length} features in window sticker for ${result.vin}`);
-      
-      // Update checkboxes based on features
-      const updatedFeatures = await this.updateFeatureCheckboxes(features);
-      result.featuresUpdated = updatedFeatures;
+      const stickerContent = stickerResult;
 
-      // Add to VehicleProcessingResult: unmappedFeatures: string[] = [];
-      const unmapped = result.featuresFound.filter(f => !updatedFeatures.some(u => fuzz.ratio(f, u) > 90));
+      // Use all extracted features
+      result.featuresFound = stickerContent.allFeatures;
+      this.logger.info(`Found ${stickerContent.allFeatures.length} features in window sticker for ${result.vin}`);
+      // Defensive: ensure pricedOptions is iterable
+      if (stickerContent.pricedOptions && typeof stickerContent.pricedOptions.entries === 'function') {
+        this.logger.info(`Priced options: ${Array.from(stickerContent.pricedOptions.entries()).map(([f, p]) => `${f}: $${p}`).join(', ')}`);
+      } else {
+        this.logger.info('No priced options found or not iterable.');
+      }
+
+      // Close the popup before proceeding to checkboxes
+      await this.errorHandlingService!.executeWithErrorHandling(
+        () => windowStickerService.closePopup(),
+        { step: 'close_popup', vehicleVin: result.vin }
+      );
+
+      // Click Edit Description button to go to checkbox page
+      // Click Edit Description button to go to checkbox page
+      const editDescResult = await this.errorHandlingService!.executeWithErrorHandling(
+        () => reliableClick(this.page!, vAutoSelectors.vehicleDetails.editDescriptionButton, 'Edit Description Button'),
+        { step: 'edit_description', vehicleVin: result.vin }
+      );
+      await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
+
+      // Update checkboxes based on features
+      const updateResult = await this.errorHandlingService!.executeWithErrorHandling(
+        () => this.updateFeatureCheckboxes(stickerContent.allFeatures),
+        { step: 'update_checkboxes', vehicleVin: result.vin }
+      );
+      if (!updateResult) throw new Error('Failed to update feature checkboxes');
+      result.featuresUpdated = updateResult || [];
+
+      // Track unmapped features
+      const unmapped = result.featuresFound.filter(f => !result.featuresUpdated.some(u => fuzz.ratio(f, u) > 85));
       result.unmappedFeatures = unmapped;
       this.logger.info(`Unmapped features: ${unmapped.join(', ')}`);
-      
+
       // Save changes
       const saveSelector = { xpath: '//*[@id="ext-gen58"]', css: '#ext-gen58' };
-      await this.browser.reliableClick(saveSelector);
+      await this.errorHandlingService!.executeWithErrorHandling(
+        () => this.browser.reliableClick(saveSelector),
+        { step: 'save_changes', vehicleVin: result.vin }
+      );
       await waitForLoadingToComplete(this.page!, Object.values(vAutoSelectors.loading));
       this.logger.info('Vehicle changes saved');
-      
+
       result.processed = true;
       this.logger.info(`Successfully processed vehicle ${result.vin}`);
       
@@ -616,67 +669,206 @@ export class VAutoAgent extends BaseAgent {
   
   private async updateFeatureCheckboxes(foundFeatures: string[]): Promise<string[]> {
     const updatedFeatures: string[] = [];
-    const allCheckboxLabels = new Set<string>();
+    const allCheckboxLabels = new Map<string, any>(); // label -> element info
     
-    // First, get all checkbox labels on the page
+    this.logger.info('Starting checkbox synchronization...');
+    
+    // First, enumerate all checkboxes on the page (ExtJS uses image-based checkboxes)
     try {
-      const labels = await this.page!.$$eval('label', (elements) => 
-        elements.map(el => el.textContent?.trim() || '').filter(text => text.length > 0)
-      );
-      labels.forEach(label => allCheckboxLabels.add(label));
+      // Wait for checkbox container to be visible
+      const containerSelector = '//div[@id="description-checkboxes"] | //div[contains(@class, "checkbox-container")] | //div[contains(@class, "x-grid-panel")]';
+      await this.page!.waitForSelector(containerSelector, { timeout: 10000 });
+      
+      // Get all ExtJS checkbox elements (they use img tags)
+      const checkboxImages = await this.page!.$$('img[src*="pixel.gif"], img[src*="checkbox"], img[id*="checkbox"]');
+      this.logger.info(`Found ${checkboxImages.length} checkbox image elements`);
+      
+      // Also try to find checkbox containers with specific ExtJS patterns
+      const extjsCheckboxes = await this.page!.$$('[id*="ext-va-feature-checkbox-"] img, div[id*="checkbox"] img');
+      this.logger.info(`Found ${extjsCheckboxes.length} ExtJS checkbox elements`);
+      
+      // Combine both approaches
+      const allCheckboxElements = [...checkboxImages, ...extjsCheckboxes];
+      const uniqueElements = new Map<string, any>();
+      
+      for (const element of allCheckboxElements) {
+        try {
+          // Get the parent container ID or unique identifier
+          const parentId = await element.evaluate((el: HTMLElement) => {
+            const parent = el.closest('[id]');
+            return parent?.id || '';
+          });
+          
+          if (parentId && !uniqueElements.has(parentId)) {
+            uniqueElements.set(parentId, element);
+            
+            // Get the label text for this checkbox
+            const labelText = await this.getExtJSCheckboxLabel(element);
+            if (labelText && labelText.length > 0) {
+              allCheckboxLabels.set(labelText, {
+                element,
+                parentId,
+                isChecked: await this.isExtJSCheckboxChecked(element)
+              });
+            }
+          }
+        } catch (error) {
+          this.logger.warn('Failed to process checkbox element', error);
+        }
+      }
+      
+      this.logger.info(`Enumerated ${allCheckboxLabels.size} labeled checkboxes`);
     } catch (error) {
-      this.logger.warn('Could not enumerate all checkbox labels', error);
+      this.logger.error('Failed to enumerate checkboxes', error);
+      return updatedFeatures;
     }
     
-    // Process each found feature
+    // Create a set of features that should be checked (from window sticker)
+    const featuresToCheck = new Set<string>();
+    
+    // Process each found feature and map to checkbox labels
     for (const feature of foundFeatures) {
       const possibleLabels = getCheckboxLabels(feature);
       
-      for (const label of possibleLabels) {
-        // Try exact match first
-        if (allCheckboxLabels.has(label)) {
-          const score = fuzz.ratio(feature, label);
-          if (score > 90) {
-            const updated = await this.updateSingleCheckbox(label, true);
-            if (updated) {
-              updatedFeatures.push(label);
-              break; // Move to next feature
-            }
-          }
+      // Also try direct fuzzy matching against all checkbox labels
+      for (const [checkboxLabel, checkboxInfo] of allCheckboxLabels) {
+        const directScore = fuzz.ratio(feature.toLowerCase(), checkboxLabel.toLowerCase());
+        
+        // Check if this feature matches the checkbox label
+        if (directScore > 85 || possibleLabels.some(pl => fuzz.ratio(pl.toLowerCase(), checkboxLabel.toLowerCase()) > 85)) {
+          featuresToCheck.add(checkboxLabel);
+          this.logger.debug(`Mapped feature "${feature}" to checkbox "${checkboxLabel}" (score: ${directScore})`);
         }
       }
     }
     
-    // Also uncheck features that weren't found (optional - depends on requirements)
-    // This part would need more sophisticated logic to avoid unchecking everything
-    for (const label of allCheckboxLabels) {
-      if (!foundFeatures.includes(label)) {
-        await this.updateSingleCheckbox(label, false);
+    this.logger.info(`Mapped ${featuresToCheck.size} features to checkboxes`);
+    
+    // Now synchronize all checkboxes based on window sticker truth
+    let checkedCount = 0;
+    let uncheckedCount = 0;
+    
+    for (const [checkboxLabel, checkboxInfo] of allCheckboxLabels) {
+      try {
+        const shouldBeChecked = featuresToCheck.has(checkboxLabel);
+        const isCurrentlyChecked = checkboxInfo.isChecked;
+        
+        // Only update if state needs to change
+        if (shouldBeChecked !== isCurrentlyChecked) {
+          // Click the parent container or the image itself
+          const clickTarget = await this.page!.$(`#${checkboxInfo.parentId}`) || checkboxInfo.element;
+          
+          if (clickTarget) {
+            // Scroll into view before clicking
+            await clickTarget.scrollIntoViewIfNeeded();
+            await this.page!.waitForTimeout(100);
+            
+            await clickTarget.click();
+            
+            if (shouldBeChecked) {
+              checkedCount++;
+              updatedFeatures.push(checkboxLabel);
+              this.logger.info(`✅ Checked: ${checkboxLabel}`);
+            } else {
+              uncheckedCount++;
+              this.logger.info(`❌ Unchecked: ${checkboxLabel} (not in window sticker)`);
+            }
+            
+            // Small delay between checkbox updates
+            await this.page!.waitForTimeout(200);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to update checkbox "${checkboxLabel}"`, error);
       }
     }
+    
+    this.logger.info(`Checkbox synchronization complete: ${checkedCount} checked, ${uncheckedCount} unchecked`);
     
     return updatedFeatures;
   }
   
-  private async updateSingleCheckbox(label: string, shouldBeChecked: boolean): Promise<boolean> {
+  /**
+   * Get the label text for an ExtJS image-based checkbox
+   */
+  private async getExtJSCheckboxLabel(checkboxImg: any): Promise<string> {
     try {
-      // Try primary selector
-      let selector = vAutoSelectors.vehicleDetails.checkboxByLabel(label);
-      let success = await setCheckbox(this.page!, selector, shouldBeChecked);
+      // ExtJS checkboxes typically have labels in adjacent table cells or divs
+      const labelText = await checkboxImg.evaluate((img: HTMLElement) => {
+        // Strategy 1: Check parent TD's next sibling TD
+        const parentTd = img.closest('td');
+        if (parentTd && parentTd.nextElementSibling) {
+          const text = parentTd.nextElementSibling.textContent?.trim();
+          if (text) return text;
+        }
+        
+        // Strategy 2: Check parent div's text content (excluding the img)
+        const parentDiv = img.closest('div[id]');
+        if (parentDiv) {
+          const clone = parentDiv.cloneNode(true) as HTMLElement;
+          const imgs = clone.querySelectorAll('img');
+          imgs.forEach(i => i.remove());
+          const text = clone.textContent?.trim();
+          if (text) return text;
+        }
+        
+        // Strategy 3: Look for label in parent row
+        const parentRow = img.closest('tr');
+        if (parentRow) {
+          const cells = parentRow.querySelectorAll('td');
+          for (const cell of Array.from(cells)) {
+            const text = cell.textContent?.trim();
+            if (text && text.length > 2 && !cell.contains(img)) {
+              return text;
+            }
+          }
+        }
+        
+        // Strategy 4: Check following sibling elements
+        let sibling = img.parentElement?.nextElementSibling;
+        while (sibling && sibling.textContent?.trim().length === 0) {
+          sibling = sibling.nextElementSibling;
+        }
+        if (sibling) {
+          return sibling.textContent?.trim() || '';
+        }
+        
+        return '';
+      });
       
-      if (!success) {
-        // Try alternative selector
-        selector = vAutoSelectors.vehicleDetails.checkboxByLabelAlt(label);
-        success = await setCheckbox(this.page!, selector, shouldBeChecked);
-      }
-      
-      if (success) {
-        this.logger.debug(`Updated checkbox "${label}" to ${shouldBeChecked}`);
-      }
-      
-      return success;
+      return labelText || '';
     } catch (error) {
-      this.logger.warn(`Failed to update checkbox "${label}"`, error);
+      this.logger.warn('Error getting ExtJS checkbox label', error);
+      return '';
+    }
+  }
+  
+  /**
+   * Check if an ExtJS image-based checkbox is checked
+   */
+  private async isExtJSCheckboxChecked(checkboxImg: any): Promise<boolean> {
+    try {
+      // ExtJS typically changes the image src or class when checked
+      const imgSrc = await checkboxImg.getAttribute('src');
+      const imgClass = await checkboxImg.getAttribute('class');
+      const parentClass = await checkboxImg.evaluate((img: HTMLElement) => 
+        img.parentElement?.className || ''
+      );
+      
+      // Common patterns for checked state
+      const checkedPatterns = [
+        'checked',
+        'true',
+        'selected',
+        'x-grid3-check-col-on',
+        'x-form-check-checked'
+      ];
+      
+      const srcAndClasses = `${imgSrc} ${imgClass} ${parentClass}`.toLowerCase();
+      
+      return checkedPatterns.some(pattern => srcAndClasses.includes(pattern));
+    } catch (error) {
+      this.logger.warn('Error checking ExtJS checkbox state', error);
       return false;
     }
   }
@@ -747,5 +939,109 @@ Generated by vAuto Automation Agent
       report,
       this.currentRunResult.failedVehicles > 0
     );
+  }
+
+  /**
+   * Robust Factory Equipment button clicking with multiple strategies
+   */
+  private async clickFactoryEquipmentButtonRobust(): Promise<boolean> {
+    this.logger.info('🏭 Attempting to click Factory Equipment button with robust approach...');
+
+    if (!this.page) {
+      throw new Error('Page not initialized');
+    }
+
+    await this.page.screenshot({ path: `debug-before-factory-button-${Date.now()}.png`, fullPage: true });
+
+    // First, ensure we're in the correct iframe context
+    const gaugeFrame = this.page.frameLocator('#GaugePageIFrame');
+
+    // Multiple selector strategies based on yesterday's breakthrough
+    const factoryButtonSelectors = [
+      '#ext-gen199',  // Specific ID from yesterday's breakthrough
+      'button:has-text("Factory Equipment")',  // Text-based fallback
+      '//button[contains(text(), "Factory Equipment")]',  // XPath text fallback
+      'button[class*="x-btn-text"]:has-text("Factory Equipment")',  // Class + text combination
+      '#ext-gen201',  // Alternative ID mentioned in docs
+      '#ext-gen175',   // Another alternative ID
+      '//*[@id="ext-gen199"]',  // User-provided XPath by ID
+      '/html/body/form/div[2]/div/div[2]/div/div[6]/div/div/div/div[2]/div[2]/div[1]/div/div/div/div/div/div/div[1]/div[2]/div/table/tbody/tr[2]/td[2]/em/button',  // User-provided full XPath (corrected for validity)
+      '//button[contains(@class, "x-btn-text") and contains(text(), "Factory Equipment")]'  // More specific XPath combining class and text
+    ];
+
+    for (let attempt = 0; attempt < factoryButtonSelectors.length; attempt++) {
+      const selector = factoryButtonSelectors[attempt];
+      this.logger.info(`🔍 Trying Factory Equipment selector ${attempt + 1}/${factoryButtonSelectors.length}: ${selector}`);
+
+      try {
+        const factoryButton = gaugeFrame.locator(selector).first();
+
+        // Check if button exists and is visible
+        const isVisible = await factoryButton.isVisible({ timeout: 3000 });
+        if (!isVisible) {
+          this.logger.info(`❌ Button not visible with selector: ${selector}`);
+          continue;
+        }
+
+        const isEnabled = await factoryButton.isEnabled();
+        const outerHTML = await factoryButton.evaluate((el: Element) => el.outerHTML).catch(() => '[HTML not accessible]');
+
+        this.logger.info(`✅ Found Factory Equipment button - Selector: ${selector}, Visible: ${isVisible}, Enabled: ${isEnabled}`);
+        this.logger.info(`Button HTML: ${outerHTML}`);
+
+        if (isVisible && isEnabled) {
+          // Try multiple click strategies
+          const clickStrategies = [
+            { name: 'normal', action: () => factoryButton.click() },
+            { name: 'force', action: () => factoryButton.click({ force: true }) },
+            { name: 'javascript', action: () => factoryButton.evaluate((el: HTMLElement) => el.click()) }
+          ];
+
+          for (const strategy of clickStrategies) {
+            try {
+              this.logger.info(`🖱️ Attempting ${strategy.name} click on Factory Equipment button`);
+              await strategy.action();
+
+              // Wait for either new window or content change
+              await this.page.waitForTimeout(2000);
+
+              // Check if new window opened (popup)
+              const pages = this.page.context().pages();
+              if (pages.length > 1) {
+                const popupPage = pages[pages.length - 1];
+                const popupUrl = popupPage.url();
+                this.logger.info(`✅ Factory Equipment popup window detected - button click successful!`);
+                this.logger.info(`🌐 Popup URL: ${popupUrl}`);
+                await popupPage.close(); // Clean up by closing the popup
+                return true;
+              }
+
+              // Check if content changed in iframe (alternative behavior)
+              const hasStandardEquipment = await gaugeFrame.locator('//div[contains(text(), "Standard Equipment")]').isVisible({ timeout: 2000 }).catch(() => false);
+              if (hasStandardEquipment) {
+                this.logger.info('✅ Factory Equipment content loaded in iframe - button click successful!');
+                return true;
+              }
+
+              this.logger.info(`⚠️ ${strategy.name} click completed but no expected result detected`);
+
+            } catch (clickError) {
+              this.logger.warn(`❌ ${strategy.name} click failed: ${clickError}`);
+            }
+          }
+
+          this.logger.warn(`⚠️ All click strategies failed for selector: ${selector}`);
+        } else {
+          this.logger.warn(`❌ Button not ready - Visible: ${isVisible}, Enabled: ${isEnabled}`);
+        }
+
+      } catch (error) {
+        this.logger.warn(`❌ Error with selector ${selector}: ${error}`);
+      }
+    }
+
+    this.logger.error('❌ All Factory Equipment button selectors and click strategies failed');
+    await this.page.screenshot({ path: `debug-factory-button-all-failed-${Date.now()}.png`, fullPage: true });
+    return false;
   }
 }

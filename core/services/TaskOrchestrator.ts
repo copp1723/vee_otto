@@ -59,6 +59,15 @@ export class TaskOrchestrator {
   }
 
   /**
+   * Get a task definition by its ID
+   * @param taskId The ID of the task to retrieve
+   * @returns The task definition, or undefined if not found
+   */
+  getTask(taskId: string): TaskDefinition | undefined {
+    return this.tasks.get(taskId);
+  }
+
+  /**
    * Execute all tasks in dependency order
    */
   async executeAll(page: Page, config: any): Promise<Map<string, TaskResult>> {

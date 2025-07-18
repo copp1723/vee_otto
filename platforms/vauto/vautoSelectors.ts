@@ -69,18 +69,26 @@ export const vAutoSelectors = {
     // Real ExtJS grid structure (from user's interface data)
     vehicleRows: '//tr[contains(@class, "x-grid3-row")]',
     vehicleRowData: '//tr[contains(@class, "x-grid3-row")]/td',
-    
-    // Vehicle link selectors for clicking on vehicle URLs in inventory list
-    vehicleLink: '//tr[contains(@class, "x-grid3-row")]//a[contains(@href, "javascript") or contains(@onclick, "javascript")]',
-    vehicleLinkByRow: (rowIndex: number) => `(//tr[contains(@class, "x-grid3-row")])[${rowIndex}]//a`,
-    vehicleNameLink: '//td[contains(@class, "x-grid3-col")]//a[contains(text(), " ")]',
-    
+
+    // --- VEHICLE LINK SELECTORS: Order matters, try most specific first, fallback to broadest ---
+    // 1. Match by year text (most reliable if visible)
+    vehicleLinkByYearAndMake: '//tr[contains(@class, "x-grid3-row")]//a[contains(text(), "201") or contains(text(), "202")]', 
+
+    // 2. Match by row/column patterns
+    vehicleFirstColumnLink: '//tr[contains(@class, "x-grid3-row")]//td[1]//a',
+    vehicleYearMakeModelLink: '//td[contains(@class, "x-grid3-td-first")]//a',
+
+    // 3. Fallbacks: Look for anchor with any 'href' or 'onclick' containing 'vehicle'
+    vehicleLink: '//tr[contains(@class, "x-grid3-row")]//a[contains(@href, "javascript") or contains(@onclick, "javascript")]', 
+
+    // 4. Never-fail (broadest, most tolerant, last in priority)
+    // Never-fail: Match any anchor in a vehicle row (very broad, last resort for bulletproof automation)
+    vehicleLinkNeverFail: '//tr[contains(@class, "x-grid3-row")]//a',
+
     // Additional vehicle link selectors based on vAuto's actual structure
     vehicleLinkInGrid: '//div[@class="x-grid3-scroller"]//a',
     vehicleLinkByText: '//a[contains(@class, "x-grid3") or contains(@class, "grid")]',
-    vehicleFirstColumnLink: '//tr[contains(@class, "x-grid3-row")]//td[1]//a',
-    vehicleYearMakeModelLink: '//td[contains(@class, "x-grid3-td-first")]//a',
-    
+
     // Grid column selectors (actual ExtJS classes from user's data)
     vinColumn: '//td[contains(@class, "x-grid3-col-vin")]',
     ageColumn: '//td[contains(@class, "x-grid3-col-age")]',
@@ -99,16 +107,20 @@ export const vAutoSelectors = {
   
   vehicleDetails: {
     // Vehicle Info tab and iframe selectors
-    vehicleInfoTab: '//a[contains(text(), "Vehicle Info")] | //div[contains(text(), "Vehicle Info")] | //span[contains(text(), "Vehicle Info")]',
-    vehicleInfoTabActive: '//div[contains(@class, "x-tab-strip-active")]//span[contains(text(), "Vehicle Info")]',
-    gaugePageIFrame: '#GaugePageIFrame',
-    gaugePageIFrameXPath: '//iframe[@id="GaugePageIFrame"]',
+    vehicleInfoTab: '//button[contains(text(), "VEHICLE INFO")] | //tab[contains(text(), "Vehicle Info")]',
+    vehicleInfoTabActive: '//button[contains(@class, "active") and contains(text(), "VEHICLE INFO")]',
+    gaugePageIFrame: '//iframe[@id="gaugePageIFrame"]',
+    gaugePageIFrameXPath: '//iframe[@id="gaugePageIFrame"]',
     
     // Real ExtJS Factory Equipment tab selector (from user's interface data)
-    factoryEquipmentTab: '//*[@id="ext-gen175"]',
-    factoryEquipmentTabCSS: '#ext-gen175',
-    factoryEquipmentTabAlt: '//div[contains(@class, "x-tab") and contains(text(), "Factory Equipment")]',
-    factoryEquipmentTabInFrame: '//a[@id="ext-gen201"] | //div[@id="ext-gen201"]',
+    factoryEquipmentTab: '//button[contains(text(), "Factory Equipment")] | //a[contains(text(), "Factory Equipment")]',
+    factoryEquipmentTabCSS: 'button:contains("Factory Equipment"), a:contains("Factory Equipment")',
+    factoryEquipmentTabAlt: '//td[@id="ext-gen201"] | //button[@id="ext-gen201"]',
+    factoryEquipmentTabId: '#ext-gen201',
+    factoryEquipmentTabExact: '#ext-gen199', // Exact ID from user testing
+    editDescriptionButton: '//button[contains(text(), "Edit Description")] | //button[contains(@onclick, "closePopupAndGoToDescription")] | //a[contains(text(), "Edit Description")]',
+    factoryEquipmentTabInFrame: '//button[@id="ext-gen191"] | //table[@id="factory-equipment"]//button',
+    factoryEquipmentButtonSelector: '#factory-equipment button.x-btn-text',
     
     // Factory Equipment PDF button and window selectors
     factoryEquipmentPDFButton: '//button[contains(text(), "Factory Equipment")] | //a[contains(text(), "Factory Equipment PDF")] | //div[contains(text(), "Factory Equipment")]',
@@ -126,7 +138,7 @@ export const vAutoSelectors = {
     
     // Window sticker and content selectors
     windowStickerButton: '//button[contains(text(), "View Window Sticker")]',
-    stickerContentContainer: '//iframe[contains(@src, "sticker")]',
+    stickerContentContainer: '//*[@id="ext-gen211"] | //div[contains(@class, "window-sticker")]',
     stickerContentAlt1: '//div[@id="window-sticker-content"]',
     stickerContentAlt2: '//div[contains(@class, "sticker-content")]',
     
@@ -134,22 +146,26 @@ export const vAutoSelectors = {
     checkboxContainer: '//div[contains(@class, "x-fieldset")]//div[contains(@class, "x-form-check-group")]',
     checkboxPattern: '//input[starts-with(@id, "ext-va-feature-checkbox-")]',
     checkboxInput: (checkboxId: string) => `//input[@id="${checkboxId}"]`,
-    checkboxByLabel: (label: string) => `//div[contains(text(), "${label}")]/preceding-sibling::input[@type="checkbox"] | //div[contains(text(), "${label}")]/following-sibling::input[@type="checkbox"]`,
-    checkboxByLabelAlt: (label: string) => `//label[contains(text(), "${label}")]/input[@type="checkbox"] | //label[contains(text(), "${label}")]/preceding-sibling::input[@type="checkbox"]`,
-    checkboxImg: (checkboxId: string) => `//div[@id="${checkboxId}"]/img`,
+    checkboxByLabel: (label: string) => `//label[contains(text(), "${label}")]/preceding-sibling::input[@type="checkbox"] | //label[contains(text(), "${label}")]/input[@type="checkbox"]`,
+    checkboxByLabelAlt: (label: string) => `//td[contains(text(), "${label}")]/preceding-sibling::td//input[@type="checkbox"] | //div[contains(text(), "${label}")]/input[@type="checkbox"]`,
+    customCheckboxSelector: (id: string) => `//input[@id="${id}"] | //div[@id="${id}"]/img`,
     
     // ExtJS feature checkbox categories
     featureFieldset: '//fieldset[legend[contains(text(), "Features")] or legend[contains(text(), "Equipment")]]',
     categoryFieldset: (category: string) => `//fieldset[legend[contains(text(), "${category}")]]//input[@type="checkbox"]`,
     
-    // Real Save button selector (from user's interface data)
-    saveButton: '//*[@id="ext-gen58"]',
-    saveButtonCSS: '#ext-gen58',
-    saveButtonAlt: '//button[contains(text(), "Save")]',
-    saveAndCloseButton: '//button[contains(text(), "Save & Close")]',
+    // Save button selectors
+    saveButton: '//button[contains(text(), "Save")] | //button[@id="ext-gen58"] | //a[contains(text(), "Save")]',
+    saveButtonAlt: '//button[contains(@class, "save")] | //button[contains(@onclick, "save")]',
+    saveAndSyncButton: '//button[contains(text(), "Save & Sync")] | //button[contains(text(), "Save and Sync")]',
     
-    // VIN field for logging
-    vinField: '//span[contains(@class, "vin")] | //div[contains(@class, "vehicle-vin")] | //td[contains(@class, "x-grid3-col-vin")]',
+    // Description page selectors
+    descriptionContainer: '//div[@id="description-checkboxes"] | //div[contains(@class, "checkbox-container")] | //div[contains(@class, "features-list")]',
+    descriptionScrollContainer: '//div[contains(@class, "scrollable")] | //div[contains(@style, "overflow")]',
+    featureCheckboxes: '//input[@type="checkbox"][contains(@id, "feature")] | //input[@type="checkbox"][contains(@name, "feature")]',
+    
+    // VIN field selector
+    vinField: '//span[contains(@class, "vin")] | //div[contains(@class, "vehicle-vin")] | //td[contains(@class, "x-grid3-col-vin")]'
   },
   
   // Loading indicators and ExtJS masks

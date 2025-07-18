@@ -1,0 +1,13 @@
+2025-07-17T07:09:14.108Z [MVP-End-to-End] [32minfo[39m: 🚀 Starting MVP End-to-End VAuto Automation
+2025-07-17T07:09:14.110Z [MVP-End-to-End] [32minfo[39m: 📋 Configuration:
+        - Username: Jcopp
+        - Headless: false
+        - Max Vehicles: 1
+        - Max Pages: 1
+2025-07-17T07:09:14.110Z [MVP-End-to-End] [32minfo[39m: 🌐 Initializing browser...
+2025-07-17T07:09:15.145Z [MVP-End-to-End] [32minfo[39m: ✅ Browser initialized
+2025-07-17T07:09:15.146Z [MVP-End-to-End] [32minfo[39m: 🔑 Starting login process...
+2025-07-17T07:09:17.602Z [MVP-End-to-End] [31merror[39m: ❌ MVP automation failed:
+2025-07-17T07:09:17.705Z [MVP-End-to-End] [32minfo[39m: 🧹 Cleaning up...
+2025-07-17T07:09:17.794Z [MVP-End-to-End] [32minfo[39m: ✅ Cleanup complete
+2025-07-17T07:09:17.795Z [MVP-End-to-End] [31merror[39m: ❌ Fatal error:

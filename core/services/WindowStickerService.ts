@@ -62,22 +62,59 @@ export class WindowStickerService {
    */
   private parseFeatureText(content: string): string[] {
     const features: string[] = [];
+    const uniqueFeatures = new Set<string>();
     
     // Strategy 1: Structured section parsing (as per workflow)
     const structuredFeatures = this.parseStructuredSections(content);
-    features.push(...structuredFeatures);
+    structuredFeatures.forEach(f => {
+      if (!this.isDuplicateFeature(f, uniqueFeatures)) {
+        features.push(f);
+        uniqueFeatures.add(f.toLowerCase());
+      }
+    });
     
     // Strategy 2: Line-by-line parsing for unstructured content
     if (features.length === 0) {
       const lineFeatures = this.parseLineByLine(content);
-      features.push(...lineFeatures);
+      lineFeatures.forEach(f => {
+        if (!this.isDuplicateFeature(f, uniqueFeatures)) {
+          features.push(f);
+          uniqueFeatures.add(f.toLowerCase());
+        }
+      });
     }
     
     // Strategy 3: Bullet point and list parsing
     const listFeatures = this.parseBulletPoints(content);
-    features.push(...listFeatures);
+    listFeatures.forEach(f => {
+      if (!this.isDuplicateFeature(f, uniqueFeatures)) {
+        features.push(f);
+        uniqueFeatures.add(f.toLowerCase());
+      }
+    });
     
-    return [...new Set(features.filter(f => f.length > 3))];
+    return features.filter(f => f.length > 3);
+  }
+
+  /**
+   * Check if a feature is a duplicate or substring of existing features
+   */
+  private isDuplicateFeature(feature: string, existingFeatures: Set<string>): boolean {
+    const lowerFeature = feature.toLowerCase();
+    
+    // Check exact match
+    if (existingFeatures.has(lowerFeature)) {
+      return true;
+    }
+    
+    // Check if new feature is substring of existing
+    for (const existing of existingFeatures) {
+      if (existing.includes(lowerFeature) || lowerFeature.includes(existing)) {
+        return true;
+      }
+    }
+    
+    return false;
   }
   
   /**
@@ -113,15 +150,15 @@ export class WindowStickerService {
   private extractFeaturesFromSection(sectionContent: string): string[] {
     const features: string[] = [];
     
-    // Split by common delimiters
-    const delimiters = /[\n\r]+|\s*[•·-]\s*|\s*,\s*|\s*;\s*/;
+    // Split by common delimiters (only use bullet points and line breaks, not hyphens)
+    const delimiters = /[\n\r]+|\s*[•·]\s*|\s*;\s*/;
     const items = sectionContent.split(delimiters);
     
     for (const item of items) {
       const cleaned = item.trim()
         .replace(/^[\d\.\)\-\*]+\s*/, '') // Remove leading numbers/bullets
-        .replace(/^[\s\-•·]+/, '') // Remove leading dashes/bullets
-        .replace(/[\s\-•·]+$/, ''); // Remove trailing dashes/bullets
+        .replace(/^[\s•·]+/, '') // Remove leading bullets (not hyphens)
+        .replace(/[\s•·]+$/, '') // Remove trailing bullets (not hyphens)
       
       if (cleaned.length > 3 && 
           !cleaned.match(/^[\s\d]*$/) && 
@@ -169,9 +206,10 @@ export class WindowStickerService {
   private parseBulletPoints(content: string): string[] {
     const features: string[] = [];
     
-    // Match bullet point patterns
+    // Match bullet point patterns (excluding hyphens to avoid breaking hyphenated words)
     const bulletPatterns = [
-      /[•·-]\s*([^\n\r•·-]+)/g,
+      /[•·]\s*([^\n\r•·]+)/g,
+      /^\s*-\s*([^\n\r]+)/gm,  // Only match hyphens at start of line
       /\*\s*([^\n\r\*]+)/g,
       /\d+\.\s*([^\n\r\d\.]+)/g
     ];

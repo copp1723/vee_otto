@@ -3,6 +3,8 @@
 .env.local
 .env.production
 .env.staging.local
+.env.mvp
+.env.render
 
 # Webhook handler
 webhook-handler/.env

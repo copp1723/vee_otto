@@ -41,7 +41,7 @@ export class Auth2FAService {
     try {
       this.logger.info('🔐 Starting 2FA authentication...');
       
-      // Step 1: Handle 2FA selection if needed
+      // Step 1: Handle phone selection if needed
       await this.handlePhoneSelection(page);
       
       // Step 2: Wait for and retrieve SMS code
@@ -49,32 +49,99 @@ export class Auth2FAService {
       const code = await this.retrieveSMSCode();
       this.logger.info(`📱 Retrieved code result: ${code}`);
       
-      if (!code) {
-        throw new Error('Failed to retrieve SMS code');
+      // Step 3: Enter and submit the code (with fixes)
+      if (code) {
+        this.logger.info('🔤 About to enter code: ' + code);
+        this.logger.info('🔍 DEBUG: Starting code entry process with code: ' + code);
+        
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
+        
+        // Try multiple ways to enter the code
+        let codeEntered = false;
+        const inputSelectors = [
+          this.config.codeInputSelector, 
+          'input[type="text"]', 
+          'input[type="number"]',
+          'input[placeholder*="verification"]',
+          'input[placeholder*="code"]'
+        ];
+        
+        for (const selector of inputSelectors) {
+          try {
+            const input = page.locator(selector).first();
+            if (await input.isVisible()) {
+              await input.fill(code);
+              await page.waitForTimeout(500);
+              const value = await input.inputValue();
+              if (value === code) {
+                this.logger.info('✅ Code entered with selector: ' + selector);
+                codeEntered = true;
+                break;
+              }
+            }
+          } catch (e) {
+            this.logger.debug(`Input selector failed: ${e}`);
+          }
+        }
+        
+        if (!codeEntered) {
+          throw new Error('Failed to enter code');
+        }
+        
+        // Submit the code
+        let submitted = false;
+        const submitSelectors = [
+          this.config.submitSelector,
+          '//button[contains(text(), "Verify")] | //button[contains(text(), "Continue")] | //button[@type="submit"][not(contains(text(), "Sign in"))]',
+          'button[type="submit"]', 
+          'input[type="submit"]', 
+          'button[text()="Verify"]'
+        ];
+        
+        for (const selector of submitSelectors) {
+          try {
+            const button = page.locator(selector).first();
+            if (await button.isVisible() && await button.isEnabled()) {
+              await button.click();
+              this.logger.info(`✅ Submitted with selector: ${selector}`);
+              submitted = true;
+              break;
+            }
+          } catch (e) {
+            this.logger.debug(`Submit selector failed: ${e}`);
+          }
+        }
+        
+        if (!submitted) {
+          this.logger.warn('No submit button found, pressing Enter...');
+          await page.keyboard.press('Enter');
+        }
+        
+        // Verify success
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(5000);
+        await this.verifyAuthSuccess(page);
+        
+        return {
+          success: true,
+          code,
+          timestamp: startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: 'No code retrieved',
+          timestamp: startTime
+        };
       }
-      
-      // Step 3: Enter code and submit
-      this.logger.info(`🔤 About to enter code: ${code}`);
-      await this.enterAndSubmitCode(page, code);
-      this.logger.info('✅ Code entry completed');
-      
-      // Step 4: Verify success
-      await this.verifyAuthSuccess(page);
-      
-      this.logger.info('✅ 2FA authentication completed successfully');
-      
-      return {
-        success: true,
-        code,
-        timestamp: startTime
-      };
-      
     } catch (error) {
-      this.logger.error('❌ 2FA authentication failed', error);
-      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('2FA authentication failed:', error);
+      await this.takeScreenshot(page, '2fa-auth-error');
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
         timestamp: startTime
       };
     }
@@ -358,215 +425,20 @@ export class Auth2FAService {
   }
 
   /**
-   * Enter code and submit using your working logic
-   */
-  private async enterAndSubmitCode(page: Page, code: string): Promise<void> {
-    this.logger.info(`🔍 DEBUG: Starting code entry process with code: ${code}`);
-    
-    // Take screenshot before entering code
-    await this.takeScreenshot(page, '2fa-before-code-entry');
-    
-    // Debug: Check current page state
-    this.logger.info(`🔍 DEBUG: Current URL: ${page.url()}`);
-    this.logger.info(`🔍 DEBUG: Page title: ${await page.title()}`);
-    
-    // Debug: List all input fields on the page
-    const allInputs = await page.$$('input');
-    this.logger.info(`🔍 DEBUG: Found ${allInputs.length} input fields total`);
-    
-    for (let i = 0; i < allInputs.length; i++) {
-      try {
-        const input = allInputs[i];
-        const type = await input.getAttribute('type');
-        const id = await input.getAttribute('id');
-        const name = await input.getAttribute('name');
-        const placeholder = await input.getAttribute('placeholder');
-        const isVisible = await input.isVisible();
-        this.logger.info(`🔍 DEBUG: Input ${i}: type="${type}", id="${id}", name="${name}", placeholder="${placeholder}", visible=${isVisible}`);
-      } catch (e) {
-        this.logger.info(`🔍 DEBUG: Input ${i}: Could not get attributes`);
-      }
-    }
-    
-    // Debug: Check if we're in an iframe
-    const frames = page.frames();
-    this.logger.info(`🔍 DEBUG: Found ${frames.length} frames on page`);
-    if (frames.length > 1) {
-      for (let i = 1; i < frames.length; i++) {
-        const frame = frames[i];
-        this.logger.info(`🔍 DEBUG: Frame ${i}: URL: ${frame.url()}`);
-        const frameInputs = await frame.$$('input');
-        this.logger.info(`🔍 DEBUG: Frame ${i}: Found ${frameInputs.length} input fields`);
-      }
-    }
-    
-    // Try the original working selector first
-    const inputSelectors = [
-      this.config.codeInputSelector,
-      '//input[@type="text"]',
-      '//input[@type="number"]',
-      'input[placeholder*="verification"]',
-      'input[placeholder*="code"]',
-      'input[name*="verification"]',
-      'input[name*="code"]',
-      'input[id*="verification"]',
-      'input[id*="code"]'
-    ];
-    
-    this.logger.info(`🔍 DEBUG: Trying to find input field with selectors: ${JSON.stringify(inputSelectors)}`);
-    
-    let inputElement = null;
-    let foundSelector = null;
-    
-    for (const selector of inputSelectors) {
-      try {
-        this.logger.info(`🔍 DEBUG: Trying selector: ${selector}`);
-        const element = page.locator(selector).first();
-        const isVisible = await element.isVisible({ timeout: 5000 });
-        const isEnabled = await element.isEnabled();
-        this.logger.info(`🔍 DEBUG: Selector ${selector}: visible=${isVisible}, enabled=${isEnabled}`);
-        
-        if (isVisible && isEnabled) {
-          inputElement = element;
-          foundSelector = selector;
-          this.logger.info(`✅ DEBUG: Found input field with selector: ${selector}`);
-          break;
-        }
-      } catch (e) {
-        this.logger.info(`🔍 DEBUG: Selector ${selector} failed: ${e}`);
-        continue;
-      }
-    }
-    
-    if (!inputElement) {
-      this.logger.error(`❌ DEBUG: Could not find 2FA code input field with any selector`);
-      throw new Error('Could not find 2FA code input field');
-    }
-    
-    this.logger.info(`🔍 DEBUG: Using selector: ${foundSelector}`);
-    
-    // Debug: Check element state before interaction
-    const elementHandle = await inputElement.elementHandle();
-    if (elementHandle) {
-      const boundingBox = await elementHandle.boundingBox();
-      const outerHTML = await elementHandle.evaluate(el => el.outerHTML);
-      const isEditable = await elementHandle.isEditable();
-      this.logger.info(`🔍 DEBUG: Element outerHTML: ${outerHTML}`);
-      this.logger.info(`🔍 DEBUG: Element bounding box: ${JSON.stringify(boundingBox)}`);
-      this.logger.info(`🔍 DEBUG: Element is editable: ${isEditable}`);
-    }
-    
-    // Debug: Try to focus the element first
-    try {
-      await inputElement.focus();
-      this.logger.info(`✅ DEBUG: Successfully focused input element`);
-    } catch (e) {
-      this.logger.error(`❌ DEBUG: Failed to focus input element: ${e}`);
-    }
-    
-    // Clear and fill input with detailed debugging
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        this.logger.info(`🔍 DEBUG: Attempt ${attempt} to enter code...`);
-        
-        this.logger.info(`   Clearing input...`);
-        await inputElement.clear({ timeout: 5000 });
-        this.logger.info(`   Input cleared.`);
-        await page.waitForTimeout(250);
-        
-        this.logger.info(`   Filling with code: "${code}"`);
-        await inputElement.fill(code, { timeout: 5000 });
-        this.logger.info(`   Code fill action completed.`);
-        await page.waitForTimeout(250);
-        
-        const enteredValue = await inputElement.inputValue({ timeout: 5000 });
-        this.logger.info(`   Value after fill: "${enteredValue}"`);
-        
-        if (enteredValue === code) {
-          this.logger.info(`✅ DEBUG: Code entered and verified successfully on attempt ${attempt}`);
-          break;
-        }
-        
-        this.logger.warn(`   Code mismatch. Expected "${code}", got "${enteredValue}". Retrying...`);
-
-        if (attempt === 3) {
-          await this.takeScreenshot(page, '2fa-code-entry-failure');
-          throw new Error(`Code entry failed after 3 attempts. Expected "${code}", but got "${enteredValue}".`);
-        }
-        
-      } catch (error) {
-        this.logger.error(`❌ DEBUG: Attempt ${attempt} to enter code failed with error:`, error);
-        await this.takeScreenshot(page, `2fa-code-entry-error-attempt-${attempt}`);
-        if (attempt === 3) throw error;
-        
-        this.logger.warn(`🔍 DEBUG: Retrying in 1 second...`);
-        await page.waitForTimeout(1000);
-      }
-    }
-    
-    // Take screenshot after entering code
-    await this.takeScreenshot(page, '2fa-after-code-entry');
-    
-    // Submit the code with multiple selector attempts
-    const submitSelectors = [
-      this.config.submitSelector,
-      '//button[@type="submit"]',
-      '//button[contains(text(), "Verify")]',
-      '//button[contains(text(), "Submit")]',
-      '//button[contains(text(), "Continue")]',
-      '//input[@type="submit"]'
-    ];
-    
-    let submitElement = null;
-    for (const selector of submitSelectors) {
-      try {
-        const element = page.locator(selector).first();
-        if (await element.isVisible({ timeout: 5000 })) {
-          submitElement = element;
-          this.logger.info(`Found submit button with selector: ${selector}`);
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-    
-    if (submitElement) {
-      await page.waitForTimeout(1000);
-      await this.takeScreenshot(page, '2fa-before-submit');
-      
-      await submitElement.click();
-      this.logger.info('✅ Submit button clicked');
-      
-      await page.waitForTimeout(2000);
-      await this.takeScreenshot(page, '2fa-after-submit');
-      await page.waitForLoadState('networkidle');
-    } else {
-      this.logger.warn('No submit button found, trying Enter key');
-      await inputElement.press('Enter');
-      await page.waitForLoadState('networkidle');
-    }
-  }
-
-  /**
-   * Verify authentication success
+   * Verify authentication success by checking for expected URL patterns
    */
   private async verifyAuthSuccess(page: Page): Promise<void> {
-    // Wait for page to load after 2FA
-    await page.waitForLoadState('networkidle');
+    const post2FAUrl = page.url();
+    this.logger.info(`Post-2FA URL: ${post2FAUrl}`);
     
-    const currentUrl = page.url();
-    this.logger.info(`Post-2FA URL: ${currentUrl}`);
-    
-    // Check for success indicators (your working logic)
-    if (currentUrl.includes('dashboard') ||
-        currentUrl.includes('provision') ||
-        currentUrl.includes('vauto.app') ||
-        !currentUrl.includes('signin')) {
+    if (post2FAUrl.includes('dashboard') ||
+        post2FAUrl.includes('provision') ||
+        post2FAUrl.includes('vauto.app') ||
+        !post2FAUrl.includes('signin')) {
       this.logger.info('2FA verification successful');
       await this.takeScreenshot(page, '2fa-success');
     } else {
-      throw new Error(`2FA verification may have failed - unexpected URL: ${currentUrl}`);
+      throw new Error(`2FA verification may have failed - unexpected URL: ${post2FAUrl}`);
     }
   }
 

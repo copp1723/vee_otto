@@ -39,6 +39,34 @@ This is the **proven approach** that works (vs. the extracted components that di
 - ✅ Added: Multiple checkbox detection strategies
 - ✅ Removed: ~135 lines of duplicate fuzzy matching and checkbox logic
 
+## 🚨 **CURRENT ISSUE: Factory Equipment Tab Click Failure**
+
+**Status:** IDENTIFIED - Ready for Fix
+
+**Problem:**
+The enhanced vehicle processing workflow consistently fails at clicking the "Factory Equipment" tab, preventing window sticker access and blocking the entire feature extraction pipeline.
+
+**Root Cause Found:**
+- Current selectors in `EnhancedVehicleProcessingTask.ts` are not reliably finding the button
+- User provided exact working selector: `#ext-gen199`
+- Button HTML: `<button type="button" id="ext-gen199" class=" x-btn-text">Factory Equipment</button>`
+
+**Solution Plan:**
+1. **Update Primary Selector:** Use `#ext-gen199` as the first selector in the factory tab selector array
+2. **Add Robustness Checks:** Implement explicit visibility and enabled checks before clicking
+3. **Enhanced Debugging:** Add detailed logging of button state (visible, enabled, outerHTML)
+4. **Fallback Strategy:** Add direct `page.click('#ext-gen199')` if `reliableClick` fails
+
+**Files to Update:**
+- `platforms/vauto/tasks/EnhancedVehicleProcessingTask.ts` (lines ~281-287)
+- `platforms/vauto/vautoSelectors.ts` (add `#ext-gen199` to factory equipment selectors)
+
+**Expected Impact:**
+- ✅ Unblocks vehicle processing workflow
+- ✅ Enables window sticker extraction
+- ✅ Allows checkbox mapping to proceed
+- ✅ Completes end-to-end automation
+
 ## 📋 **Implementation Guidelines**
 
 ### **Service Structure Pattern:**

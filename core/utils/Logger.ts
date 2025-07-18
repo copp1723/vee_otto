@@ -1,6 +1,6 @@
-import winston from 'winston';
-import path from 'path';
-import fs from 'fs-extra';
+import * as winston from 'winston';
+import * as path from 'path';
+import * as fs from 'fs-extra';
 
 export class Logger {
   private logger!: winston.Logger; // Use definite assignment assertion

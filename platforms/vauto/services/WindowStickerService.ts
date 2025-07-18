@@ -1,153 +1,219 @@
 import { Page } from 'playwright';
-import { vautoSelectors } from '../vautoSelectors';
+import { Logger } from '../../../core/utils/Logger';
+import * as fuzz from 'fuzzball';
 
-export class WindowStickerService {
-  private page: Page;
+export interface WindowStickerContent {
+  rawContent: string;
+  sections: {
+    interior: string[];
+    comfortConvenience: string[];
+    mechanical: string[];
+    safety: string[];
+    exterior: string[];
+    packages: string[];
+  };
+  allFeatures: string[];
+  pricedOptions: Map<string, number>; // Feature -> Dollar amount
+}
 
-  constructor(page: Page) {
-    this.page = page;
+export class EnhancedWindowStickerService {
+  private logger: Logger;
+
+  constructor(private page: Page) {
+    this.logger = new Logger('WindowStickerService');
   }
 
-  async accessFactoryEquipmentTab(): Promise<boolean> {
+  /**
+   * Extract window sticker content from popup (not download)
+   */
+  async extractFromPopup(): Promise<WindowStickerContent> {
+    this.logger.info('Extracting window sticker from popup...');
+    
     try {
-      console.log('Accessing Factory Equipment tab...');
-      
-      // Wait for the tab to be available
-      await this.page.waitForSelector('#ext-gen201', { timeout: 10000 });
-      
-      // Click the Factory Equipment tab
-      await this.page.click('#ext-gen201');
-      
-      // Wait for the content to load
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(2000);
-      
-      console.log('Successfully accessed Factory Equipment tab');
-      return true;
-    } catch (error) {
-      console.error('Failed to access Factory Equipment tab:', error);
-      return false;
-    }
-  }
+      // Wait for popup to appear
+      const popupSelectors = [
+        '//div[contains(@class, "window-sticker-popup")]',
+        '//div[contains(@class, "sticker-popup")]',
+        '//div[contains(@class, "factory-equipment-popup")]',
+        '//div[@id="window-sticker-popup"]',
+        '//div[contains(@class, "modal") and contains(@style, "display: block")]'
+      ];
 
-  async extractWindowStickerFeatures(): Promise<string[]> {
-    try {
-      console.log('Extracting window sticker features...');
-      
-      // Look for window sticker button or link
-      const windowStickerButton = await this.page.locator('button:has-text("Window Sticker"), button:has-text("View Sticker"), a:has-text("Window Sticker")').first();
-      
-      if (!windowStickerButton) {
-        console.log('Window sticker button not found, checking for embedded content...');
-        return await this.extractEmbeddedFeatures();
+      let content = '';
+      for (const selector of popupSelectors) {
+        try {
+          const element = this.page.locator(selector).first();
+          if (await element.isVisible({ timeout: 5000 })) {
+            content = await element.textContent() || '';
+            this.logger.info(`Found window sticker popup using selector: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
       }
 
-      // Handle popup window
-      const [newPage] = await Promise.all([
-        this.page.waitForEvent('popup'),
-        windowStickerButton.click()
-      ]);
+      if (!content) {
+        throw new Error('Window sticker popup not found');
+      }
 
-      await newPage.waitForLoadState('networkidle');
-      
-      // Extract features from the popup
-      const features = await this.extractFeaturesFromPage(newPage);
-      
-      await newPage.close();
-      return features;
-      
+      return this.parseWindowStickerContent(content);
     } catch (error) {
-      console.error('Failed to extract window sticker features:', error);
-      return await this.extractEmbeddedFeatures();
+      this.logger.error('Failed to extract window sticker:', error);
+      throw error;
     }
   }
 
-  private async extractEmbeddedFeatures(): Promise<string[]> {
-    try {
-      // Try to extract features from embedded content
-      const features = await this.page.evaluate(() => {
-        const features: string[] = [];
-        
-        // Common selectors for window sticker content
-        const selectors = [
-          '.window-sticker-section',
-          '.sticker-section',
-          '[data-section="features"]',
-          '.feature-list',
-          '.equipment-list'
-        ];
+  /**
+   * Parse structured content from window sticker text
+   */
+  private parseWindowStickerContent(rawContent: string): WindowStickerContent {
+    const result: WindowStickerContent = {
+      rawContent,
+      sections: {
+        interior: [],
+        comfortConvenience: [],
+        mechanical: [],
+        safety: [],
+        exterior: [],
+        packages: []
+      },
+      allFeatures: [],
+      pricedOptions: new Map()
+    };
 
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach(element => {
-            const text = element.textContent?.trim();
-            if (text && text.length > 0) {
-              features.push(text);
-            }
-          });
+    // Extract sections with improved regex
+    const sectionPatterns = {
+      interior: /Interior[:\s]*([\s\S]*?)(?=\n\s*(?:Comfort|Mechanical|Safety|Exterior|Packages|$))/i,
+      comfortConvenience: /(?:Comfort\s*&\s*Convenience|Comfort\s*and\s*Convenience)[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Mechanical|Safety|Exterior|Packages|$))/i,
+      mechanical: /Mechanical[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Safety|Exterior|Packages|$))/i,
+      safety: /(?:Safety\s*&\s*Security|Safety)[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Mechanical|Exterior|Packages|$))/i,
+      exterior: /Exterior[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Mechanical|Safety|Packages|$))/i,
+      packages: /Packages[:\s]*([\s\S]*?)(?=\n\s*(?:Interior|Comfort|Mechanical|Safety|Exterior|$))/i
+    };
+
+    // Extract features from each section
+    for (const [section, pattern] of Object.entries(sectionPatterns)) {
+      const match = rawContent.match(pattern);
+      if (match && match[1]) {
+        const features = this.extractFeaturesFromSection(match[1]);
+        result.sections[section as keyof typeof result.sections] = features;
+        result.allFeatures.push(...features);
+      }
+    }
+
+    // Extract priced options (e.g., "$2,900" or "$295.00")
+    const pricePattern = /([^$\n]+?)\s*\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
+    let priceMatch;
+    while ((priceMatch = pricePattern.exec(rawContent)) !== null) {
+      const feature = priceMatch[1].trim();
+      const price = parseFloat(priceMatch[2].replace(/,/g, ''));
+      if (feature.length > 3 && !feature.match(/total|msrp|price/i)) {
+        result.pricedOptions.set(feature, price);
+        // Add priced options to features if not already present
+        if (!result.allFeatures.includes(feature)) {
+          result.allFeatures.push(feature);
         }
-
-        // Also look for specific feature items
-        const featureItems = document.querySelectorAll('.feature-item, .equipment-item, li');
-        featureItems.forEach(item => {
-          const text = item.textContent?.trim();
-          if (text && text.length > 2 && !text.includes('$')) {
-            features.push(text);
-          }
-        });
-
-        return [...new Set(features)]; // Remove duplicates
-      });
-
-      console.log(`Extracted ${features.length} embedded features`);
-      return features;
-    } catch (error) {
-      console.error('Failed to extract embedded features:', error);
-      return [];
+      }
     }
+
+    // Extract any remaining features using bullet points, dashes, etc.
+    const bulletFeatures = this.extractBulletPointFeatures(rawContent);
+    for (const feature of bulletFeatures) {
+      if (!result.allFeatures.includes(feature)) {
+        result.allFeatures.push(feature);
+      }
+    }
+
+    // Remove duplicates
+    result.allFeatures = [...new Set(result.allFeatures)];
+
+    this.logger.info(`Extracted ${result.allFeatures.length} total features from window sticker`);
+    this.logger.info(`Found ${result.pricedOptions.size} priced options`);
+
+    return result;
   }
 
-  private async extractFeaturesFromPage(page: Page): Promise<string[]> {
-    return await page.evaluate(() => {
-      const features: string[] = [];
+  /**
+   * Extract features from a section
+   */
+  private extractFeaturesFromSection(sectionContent: string): string[] {
+    const features: string[] = [];
+    
+    // Split by common delimiters
+    const lines = sectionContent.split(/[\n\r]+|(?:•)|(?:·)|(?:■)|(?:□)/);
+    
+    for (const line of lines) {
+      const cleaned = line
+        .trim()
+        .replace(/^[\d\.\)\-\*]+\s*/, '') // Remove leading numbers/bullets
+        .replace(/\s*\$[\d,]+(?:\.\d{2})?\s*$/, ''); // Remove trailing prices
       
-      // Look for structured feature data
-      const sections = ['Interior', 'Exterior', 'Mechanical', 'Safety', 'Comfort'];
-      
-      sections.forEach(section => {
-        const sectionElements = document.querySelectorAll(`*:has-text("${section}")`);
-        sectionElements.forEach(element => {
-          const siblings = element.parentElement?.querySelectorAll('li, .feature, .item');
-          siblings?.forEach(sibling => {
-            const text = sibling.textContent?.trim();
-            if (text && text.length > 2) {
-              features.push(text);
-            }
-          });
-        });
-      });
-
-      // Fallback: extract all text that looks like features
-      const allText = document.body.innerText;
-      const lines = allText.split('\n').filter(line => 
-        line.length > 2 && 
-        line.length < 100 && 
-        !line.includes('$') && 
-        !line.match(/^\d+$/)
-      );
-
-      return [...new Set([...features, ...lines])];
-    });
+      if (cleaned.length > 3 && 
+          !cleaned.match(/^[\s\d]*$/) &&
+          !cleaned.toLowerCase().includes('section') &&
+          !cleaned.toLowerCase().includes('category')) {
+        features.push(cleaned);
+      }
+    }
+    
+    return features;
   }
 
-  async waitForFactoryEquipmentLoad(): Promise<boolean> {
+  /**
+   * Extract bullet point features
+   */
+  private extractBulletPointFeatures(content: string): string[] {
+    const features: string[] = [];
+    
+    const patterns = [
+      /[•·■□]\s*([^\n•·■□]+)/g,
+      /\n\s*[-*]\s*([^\n-*]+)/g,
+      /\n\s*\d+\.\s*([^\n\d\.]+)/g
+    ];
+    
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        const feature = match[1].trim();
+        if (feature.length > 3 && !feature.match(/^[\s\d]*$/)) {
+          features.push(feature);
+        }
+      }
+    }
+    
+    return features;
+  }
+
+  /**
+   * Close the window sticker popup
+   */
+  async closePopup(): Promise<void> {
     try {
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(1000);
-      return true;
+      const closeSelectors = [
+        '//button[contains(@class, "close")]',
+        '//button[contains(text(), "Close")]',
+        '//span[contains(@class, "close")]',
+        '//a[contains(@onclick, "closePopup")]'
+      ];
+
+      for (const selector of closeSelectors) {
+        try {
+          const element = this.page.locator(selector).first();
+          if (await element.isVisible({ timeout: 1000 })) {
+            await element.click();
+            this.logger.info('Closed window sticker popup');
+            return;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      // If no close button found, try ESC key
+      await this.page.keyboard.press('Escape');
     } catch (error) {
-      console.error('Timeout waiting for factory equipment:', error);
-      return false;
+      this.logger.warn('Failed to close popup:', error);
     }
   }
 }

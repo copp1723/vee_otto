@@ -23,11 +23,15 @@
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "downlevelIteration": true
   },
   "include": [
     "src/**/*",
-    "core/**/*"
+    "core/**/*",
+    "scripts/**/*",
+    "platforms/**/*",
+    "integrations/**/*"
   ],
   "exclude": [
     "node_modules",

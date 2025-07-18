@@ -6,18 +6,32 @@ import { Page } from 'playwright';
 export async function clickFactoryEquipment(page: Page, logger: any): Promise<boolean> {
   logger.info('🏭 Attempting to click Factory Equipment tab...');
   
-  // Strategy 1: Try direct text selector first (most reliable)
+  // Strategy 1: Try the exact table ID first (most reliable)
   try {
-    logger.info('Strategy 1: Direct text selector');
-    const textSelector = page.locator('text="Factory Equipment"').first();
-    if (await textSelector.isVisible({ timeout: 3000 })) {
-      await textSelector.click();
-      logger.info('✅ Clicked using text selector');
+    logger.info('Strategy 1: Direct table ID selector #factory-equipment');
+    const tableSelector = page.locator('#factory-equipment');
+    if (await tableSelector.isVisible({ timeout: 3000 })) {
+      await tableSelector.click();
+      logger.info('✅ Clicked using table ID selector');
       await page.waitForTimeout(2000);
       return true;
     }
   } catch (e) {
-    logger.debug('Text selector failed:', e);
+    logger.debug('Table ID selector failed:', e);
+  }
+  
+  // Strategy 1b: Try clicking the button inside the table
+  try {
+    logger.info('Strategy 1b: Button inside table selector');
+    const buttonSelector = page.locator('#factory-equipment button');
+    if (await buttonSelector.isVisible({ timeout: 3000 })) {
+      await buttonSelector.click();
+      logger.info('✅ Clicked button inside table');
+      await page.waitForTimeout(2000);
+      return true;
+    }
+  } catch (e) {
+    logger.debug('Button in table selector failed:', e);
   }
   
   // Strategy 2: Try iframe approach
@@ -57,16 +71,16 @@ export async function clickFactoryEquipment(page: Page, logger: any): Promise<bo
     logger.debug('Position-based approach failed:', e);
   }
   
-  // Strategy 4: Try ExtJS-specific selectors
+  // Strategy 4: Try ExtJS-specific selectors  
   try {
-    logger.info('Strategy 4: ExtJS selectors');
+    logger.info('Strategy 4: ExtJS selectors (using exact IDs from HTML)');
     const extJsSelectors = [
-      '#ext-gen175',
-      '#ext-gen201',
-      '//a[@id="ext-gen175"]',
-      '//a[@id="ext-gen201"]',
-      '//div[@id="ext-gen175"]',
-      '//div[@id="ext-gen201"]'
+      '#factory-equipment', // The table ID from HTML
+      '#ext-gen191', // The exact button ID from HTML
+      '//table[@id="factory-equipment"]',
+      '//button[@id="ext-gen191"]',
+      '//table[@id="factory-equipment"]//button[@id="ext-gen191"]',
+      'button.x-btn-text'
     ];
     
     for (const selector of extJsSelectors) {

@@ -1,0 +1,13 @@
+---
+description: you cant create debugging scripts on specific steps in the script. all steps require 2FA and the previous step.
+globs: 
+alwaysApply: true
+---
+
+you cant create debugging scripts on specific steps in the script. all steps require 2FA and the previous step.
+
+
+do not try and create a "debug vehicle clicking.ts" or a "debug factory equipment" 
+
+
+you must run the full script in order to test or debug

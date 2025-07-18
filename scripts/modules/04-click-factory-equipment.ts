@@ -51,12 +51,12 @@ async function main() {
     
     // Try multiple selectors for Factory Equipment tab
     const factoryEquipmentSelectors = [
-      '#ext-gen175',  // Direct ID from user
-      '#ext-gen201',  // Alternative ID
       'text=Factory Equipment',
       '//div[contains(@class, "x-tab") and contains(text(), "Factory Equipment")]',
       '//a[contains(text(), "Factory Equipment")]',
-      '//span[contains(text(), "Factory Equipment")]'
+      '//span[contains(text(), "Factory Equipment")]',
+      '#ext-gen175',  // Direct ID from user
+      '#ext-gen201'   // Alternative ID
     ];
     
     let tabClicked = false;
@@ -91,8 +91,8 @@ async function main() {
           logger.info('✅ Clicked Factory Equipment tab!');
           tabClicked = true;
           
-          // Wait for content to load
-          await page.waitForTimeout(3000);
+          // Wait for content to load (e.g., a common content panel)
+          await page.waitForSelector('.x-panel-body', { state: 'visible', timeout: 10000 });
           
           break;
         }
@@ -118,7 +118,8 @@ async function main() {
             logger.info('✅ Found Factory Equipment tab in iframe!');
             await factoryTab.click();
             tabClicked = true;
-            await page.waitForTimeout(3000);
+            // Intelligent wait after click in iframe
+            await page.waitForSelector('.x-panel-body', { state: 'visible', timeout: 10000 });
             break;
           }
         } catch (e) {
